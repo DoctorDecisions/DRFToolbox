@@ -1,0 +1,9 @@
+# .coveragerc to control coverage.py
+[run]
+source = drftoolbox
+branch = True
+concurrency = multiprocessing
+parallel = True
+omit =
+    # ignore all test case files
+    drftoolbox/tests/**

@@ -1,0 +1,6 @@
+__title__ = 'drftoolbox'
+__description__ = 'utility library containing generic DRF specific API functions'
+__url__ = 'https://github.com/DoctorDecisions/DRFToolbox'
+__version__ = '0.1'
+__author__ = 'EvidenceCare Developers'
+__author_email__ = 'development@evidence.care'
