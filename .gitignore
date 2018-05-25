@@ -105,8 +105,5 @@ _static/
 # tmux config files
 *.tmux
 
-# Linting configuration
-.pylintrc
-
 # vim configuration files
 .vimrc
