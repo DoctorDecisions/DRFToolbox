@@ -6,13 +6,13 @@ import os
 
 from setuptools import setup
 
+REQUIRES_PYTHON = '>=3.6.0'
 # What packages are required for this module to be executed?
 REQUIRED = [
     'djangorestframework>=3.0.0',
     'Django>=1.11.0',
     'flatdict',
 ]
-
 TESTS_REQUIRED = [
     'pytest>=4.0.0',
     'pytest-cov>=2.5.0',
@@ -23,16 +23,13 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 # Import the README and use it as the long-description.
 # Note: this will only work if 'README.md' is present in your MANIFEST.in file!
-with io.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-    readme = '\n' + f.read()
 
 # Load the package's __version__.py module as a dictionary.
 about = {}
-if not VERSION:
-    with open(os.path.join(here, NAME, '__version__.py')) as f:
-        exec(f.read(), about)
-else:
-    about['__version__'] = VERSION
+with open(os.path.join(here, 'drftoolbox', '__version__.py'), 'r', 'utf-8') as f:
+    exec(f.read(), about)
+with open('README.md', 'r', 'utf-8') as f:
+    readme = f.read()
 
 
 # Where the magic happens:
@@ -41,7 +38,7 @@ setup(
     version=about['__version__'],
     description=about['__description__'],
     long_description=readme,
-    long_description_content_type='text/markdown'
+    long_description_content_type='text/markdown',
     author=about['__author__'],
     author_email=about['__author_email__'],
     python_requires=REQUIRES_PYTHON,
