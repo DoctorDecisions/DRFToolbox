@@ -38,7 +38,6 @@ jobs:
     steps:
       - checkout
       - *restore_venv
-      - *restore_dockerize
       - run:
           name: install dependencies
           command: |
