@@ -1,0 +1,91 @@
+version: 2
+
+py_image: &py_image
+  image: python:3.5-alpine
+
+build_key: &build_key
+  key: drftoolbox-build-{{ checksum "Pipfile" }}
+
+attach: &attach
+  attach_workspace:
+    at: .
+
+restore_venv: &restore_venv
+  restore_cache:
+    *build_key
+
+
+workflows:
+  version: 2
+  main:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+      - lint:
+          requires:
+            - build
+      #- coveralls:
+          #requires:
+            #- test
+
+
+jobs:
+  build:
+    docker:
+      - *py_image
+    steps:
+      - checkout
+      - *restore_venv
+      - *restore_dockerize
+      - run:
+          name: install dependencies
+          command: |
+            [ -d "venv" ] || (python -m venv venv && . venv/bin/activate && make init)
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "*"
+      - save_cache:
+          <<: *build_key
+          paths:
+            - ~/venv
+  test:
+    docker:
+      - *py_image
+    steps:
+      - *attach
+      - *restore_venv
+      - run:
+          name: test
+          command: |
+            . venv/bin/activate
+            make coverage
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .coverage
+  lint:
+    docker:
+      - *py_image
+    steps:
+      - *attach
+      - *restore_venv
+      - run:
+          name: lint
+          command: |
+            . venv/bin/activate
+            make lint
+  coveralls:
+    docker:
+      - *py_image
+    working_directory: /app
+    steps:
+      - *attach
+      - *restore_venv
+      - run:
+          name: coveralls
+          command: |
+            . venv/bin/activate
+            coveralls --rcfile=config/coveragerc
