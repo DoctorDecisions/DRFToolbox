@@ -4,7 +4,7 @@
 import io
 import os
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 REQUIRES_PYTHON = '>=3.6.0'
 # What packages are required for this module to be executed?
@@ -26,9 +26,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 # Load the package's __version__.py module as a dictionary.
 about = {}
-with open(os.path.join(here, 'drftoolbox', '__version__.py'), 'r', 'utf-8') as f:
+with open(os.path.join(here, 'drftoolbox', '__version__.py'), 'r', encoding='utf-8') as f:
     exec(f.read(), about)
-with open('README.md', 'r', 'utf-8') as f:
+with open('README.md', 'r', encoding='utf-8') as f:
     readme = f.read()
 
 
@@ -43,6 +43,7 @@ setup(
     author_email=about['__author_email__'],
     python_requires=REQUIRES_PYTHON,
     url=about['__url__'],
+    packages=find_packages(exclude=('tests',)),
     py_modules=['drftoolbox'],
     install_requires=REQUIRED,
     tests_require=TESTS_REQUIRED,
