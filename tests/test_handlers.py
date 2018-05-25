@@ -1,12 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-    omni.tests.test_handlers
-    ~~~~~~~~~~~~~~~~~~~~~~~~
-
-    This module provides test cases for the handlers module
-
-    :copyright: (c) 2018 by Doctor Decisions LLC
-"""
 from unittest.mock import MagicMock
 
 from django.http import Http404

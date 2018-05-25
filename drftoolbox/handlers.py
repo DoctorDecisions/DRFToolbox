@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-    omni.handlers
-    ~~~~~~~~~~~~~
+    drftoolbox.handlers
+    ~~~~~~~~~~~~~~~~~~~
 
     This module defines handlers used by the API
 
