@@ -1,7 +1,7 @@
 version: 2
 
 py_image: &py_image
-  image: python:3.5-slim-jessie
+  image: python:3.5-jessie
 
 build_key: &build_key
   key: drftoolbox-build-{{ checksum "Pipfile" }}
