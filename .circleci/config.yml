@@ -49,7 +49,7 @@ jobs:
       - save_cache:
           <<: *build_key
           paths:
-            - ~/venv
+            - venv
   test:
     docker:
       - *py_image
@@ -86,4 +86,4 @@ jobs:
           name: coveralls
           command: |
             . venv/bin/activate
-            coveralls --rcfile=config/coveragerc
+            coveralls --rcfile=.coveragerc
