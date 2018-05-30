@@ -13,11 +13,9 @@ REQUIRED = [
     'Django>=1.11.0',
     'flatdict',
 ]
-TESTS_REQUIRED = [
-    'pytest>=4.0.0',
-    'pytest-cov>=2.5.0',
-    'pytest-django>=3.1.2'
-]
+EXTRA_REQUIRED = {
+    'camelize': ['djangorestframework-camel-case>=0.2.0',],
+}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -47,6 +45,7 @@ setup(
     py_modules=['drftoolbox'],
     install_requires=REQUIRED,
     tests_require=TESTS_REQUIRED,
+    extras_require=EXTRA_REQUIRED,
     include_package_data=True,
     license='MIT',
     classifiers=[

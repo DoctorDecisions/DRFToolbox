@@ -40,8 +40,12 @@ def error_list_exception_handler(exc, context, delimiter='/'):
     def update_key_for_renderer(key, view, request):
         renderer, media_type = view.perform_content_negotiation(request, force=True)
         if type(renderer).__name__ == 'CamelCaseJSONRenderer':
-            from djangorestframework_camel_case.util import camelize
-            return list(camelize({key: None}).keys())[0]
+            try:
+                from djangorestframework_camel_case.util import camelize
+                return list(camelize({key: None}).keys())[0]
+            except ImportError:
+                warnings.warn('djangorestframework-camel-case is not installed, '
+                    'source keys may not render properly')
         return key
 
     # convert Django 404s and 403s into the DRF equivalents, this is needed so
