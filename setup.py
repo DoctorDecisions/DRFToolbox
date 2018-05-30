@@ -44,7 +44,6 @@ setup(
     packages=find_packages(exclude=('tests',)),
     py_modules=['drftoolbox'],
     install_requires=REQUIRED,
-    tests_require=TESTS_REQUIRED,
     extras_require=EXTRA_REQUIRED,
     include_package_data=True,
     license='MIT',
