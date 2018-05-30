@@ -26,9 +26,9 @@ workflows:
       - lint:
           requires:
             - build
-      #- coveralls:
-          #requires:
-            #- test
+      - coveralls:
+          requires:
+            - test
 
 
 jobs:
