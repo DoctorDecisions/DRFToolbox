@@ -6,7 +6,7 @@ import os
 
 from setuptools import setup, find_packages
 
-REQUIRES_PYTHON = '>=3.6.0'
+REQUIRES_PYTHON = '>=3.5.0'
 # What packages are required for this module to be executed?
 REQUIRED = [
     'djangorestframework>=3.0.0',
