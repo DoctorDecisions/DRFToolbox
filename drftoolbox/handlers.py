@@ -7,6 +7,8 @@
 
     :copyright: (c) 2018 by Doctor Decisions LLC
 """
+import warnings
+
 from django.http import Http404
 from django.core.exceptions import PermissionDenied
 
