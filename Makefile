@@ -10,6 +10,6 @@ lint:
 	pylint drftoolbox
 clean:
 	find . -name '*.pyc' -exec rm {} \;
+	[ -d "venv" ] && rm -rf venv/
 venv:
 	[ -d "venv" ] || python -m venv venv
-	. venv/bin/activate

@@ -41,7 +41,7 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            [ -d "venv" ] || (make venv && make init)
+            [ -d "venv" ] || (python -m venv venv && . venv/bin/activate && make init)
       - persist_to_workspace:
           root: .
           paths:
@@ -59,7 +59,7 @@ jobs:
       - run:
           name: test
           command: |
-            make venv
+            . venv/bin/activate
             make coverage
       - persist_to_workspace:
           root: .
@@ -74,7 +74,7 @@ jobs:
       - run:
           name: lint
           command: |
-            make venv
+            . venv/bin/activate
             make lint
   coveralls:
     docker:
@@ -85,7 +85,7 @@ jobs:
       - run:
           name: coveralls
           command: |
-            make venv
+            . venv/bin/activate
             coveralls --rcfile=.coveragerc
   tag:
     docker:
