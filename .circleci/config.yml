@@ -1,7 +1,7 @@
 version: 2
 
 py_image: &py_image
-  image: python:3.6-alpine
+  image: python:3.6
 
 build_key: &build_key
   key: drftoolbox-build-v1-{{ checksum "Pipfile.lock" }}
@@ -39,10 +39,6 @@ jobs:
       - checkout
       - *restore_venv
       - run:
-          name: install make
-          command: |
-            [ -f "/usr/bin/make" ] || apk add --no-cache make
-      - run:
           name: install dependencies
           command: |
             [ -d "venv" ] || (make venv && make init)
@@ -54,7 +50,6 @@ jobs:
           <<: *build_key
           paths:
             - venv
-            - /usr/bin/make
   test:
     docker:
       - *py_image
