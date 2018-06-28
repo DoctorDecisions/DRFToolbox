@@ -16,3 +16,4 @@ pytest = "*"
 pytest-cov = "*"
 pytest-django = "*"
 djangorestframework-camel-case = "*"
+drftoolbox = {editable = true, path = "."}
