@@ -8,3 +8,8 @@ coverage:
 	pytest --cov=drftoolbox --cov-config=.coveragerc tests && coverage combine --rcfile=.coveragerc
 lint:
 	pylint drftoolbox
+clean:
+	find . -name '*.pyc' -exec rm {} \;
+venv:
+	[ -d "venv" ] || python -m venv venv
+	. venv/bin/activate

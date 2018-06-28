@@ -1,7 +1,7 @@
 version: 2
 
 py_image: &py_image
-  image: python:3.5-jessie
+  image: python:3.6-alpine
 
 build_key: &build_key
   key: drftoolbox-build-v1-{{ checksum "Pipfile.lock" }}
@@ -39,9 +39,13 @@ jobs:
       - checkout
       - *restore_venv
       - run:
+          name: install make
+          command: |
+            apk add --no-cache make
+      - run:
           name: install dependencies
           command: |
-            [ -d "venv" ] || (python -m venv venv && . venv/bin/activate && make init)
+            [ -d "venv" ] || (make venv && make init)
       - persist_to_workspace:
           root: .
           paths:
@@ -59,7 +63,7 @@ jobs:
       - run:
           name: test
           command: |
-            . venv/bin/activate
+            make venv
             make coverage
       - persist_to_workspace:
           root: .
@@ -74,7 +78,7 @@ jobs:
       - run:
           name: lint
           command: |
-            . venv/bin/activate
+            make venv
             make lint
   coveralls:
     docker:
@@ -85,5 +89,11 @@ jobs:
       - run:
           name: coveralls
           command: |
-            . venv/bin/activate
+            make venv
             coveralls --rcfile=.coveragerc
+  tag:
+    docker:
+      - *py_image
+    steps:
+      - *attach
+      - *restore_venv
