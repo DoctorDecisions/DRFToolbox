@@ -29,6 +29,13 @@ workflows:
       - coveralls:
           requires:
             - test
+      - tag:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: _auto_tag
 
 
 jobs:
@@ -93,3 +100,8 @@ jobs:
     steps:
       - *attach
       - *restore_venv
+      - run:
+          name: tag build
+          command: |
+            . venv/bin/activate
+            make tag
