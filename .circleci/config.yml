@@ -50,6 +50,7 @@ jobs:
           root: .
           paths:
             - "*"
+            - "/usr/bin/make"
       - save_cache:
           <<: *build_key
           paths:
