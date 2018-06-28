@@ -1,14 +1,13 @@
-.PHONY: help
+.PHONY: init build test coverate lint clean tag help
 .DEFAULT_GOAL := help
 
 
-# FIXME: init should not auto upgrade packages
-init :  ## initialize the project and install deps
+init :  ## install and upgrade project deps
 	pip install pipenv --upgrade
 	pipenv install --dev -e .
-build :  ## build project deps
+build :  ## install locked project deps
 	pip install pipenv
-	pipenv install --dev
+	pipenv sync --dev
 test :  ## run the test cases
 	pytest
 coverage :  ## run the test cases and build a coverage report
