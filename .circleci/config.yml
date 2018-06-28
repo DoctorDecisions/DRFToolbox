@@ -104,4 +104,4 @@ jobs:
           name: tag build
           command: |
             . venv/bin/activate
-            make tag
+            make tag BUILD=$CIRCLE_BUILD_NUM
