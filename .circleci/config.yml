@@ -29,6 +29,13 @@ workflows:
       - coveralls:
           requires:
             - test
+      - tag:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: master
 
 
 jobs:
@@ -41,7 +48,7 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            [ -d "venv" ] || (python -m venv venv && . venv/bin/activate && make init)
+            [ -d "venv" ] || (python -m venv venv && . venv/bin/activate && make build)
       - persist_to_workspace:
           root: .
           paths:
@@ -93,3 +100,10 @@ jobs:
     steps:
       - *attach
       - *restore_venv
+      - run:
+          name: tag build
+          command: |
+            git config user.name $CIRCLE_USERNAME
+            git config user.email "development@evidence.care"
+            . venv/bin/activate
+            make tag BUILD=$CIRCLE_BUILD_NUM
