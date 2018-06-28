@@ -41,7 +41,7 @@ jobs:
       - run:
           name: install make
           command: |
-            apk add --no-cache make
+            [ -f "/usr/bin/make" ] || apk add --no-cache make
       - run:
           name: install dependencies
           command: |
@@ -50,11 +50,11 @@ jobs:
           root: .
           paths:
             - "*"
-            - "/usr/bin/make"
       - save_cache:
           <<: *build_key
           paths:
             - venv
+            - /usr/bin/make
   test:
     docker:
       - *py_image
