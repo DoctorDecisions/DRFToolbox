@@ -103,7 +103,7 @@ jobs:
       - run:
           name: tag build
           command: |
-             git config user.name $CIRCLE_USERNAME
-             git config user.email "development@evidence.care"
+            git config user.name $CIRCLE_USERNAME
+            git config user.email "development@evidence.care"
             . venv/bin/activate
             make tag BUILD=$CIRCLE_BUILD_NUM
