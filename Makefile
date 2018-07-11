@@ -1,6 +1,8 @@
 .PHONY: init build test coverate lint clean tag help
 .DEFAULT_GOAL := help
 
+TESTS ?= tests
+
 
 init :  ## install and upgrade project deps
 	pip install pipenv --upgrade
@@ -9,7 +11,7 @@ build :  ## install locked project deps
 	pip install pipenv
 	pipenv sync --dev
 test :  ## run the test cases
-	pytest
+	pytest $(TESTS)
 coverage :  ## run the test cases and build a coverage report
 	pytest --cov=drftoolbox --cov-config=.coveragerc tests && coverage combine --rcfile=.coveragerc
 lint :  ## run pylint
