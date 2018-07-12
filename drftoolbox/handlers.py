@@ -5,7 +5,7 @@
 
     This module defines handlers used by the API
 
-    :copyright: (c) 2018 by Doctor Decisions LLC
+    :copyright: (c) 2018 by Medical Decisions LLC
 """
 import warnings
 
