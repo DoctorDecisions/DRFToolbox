@@ -9,11 +9,14 @@ drftoolbox = {editable = true, path = "."}
 [dev-packages]
 coverage = "*"
 coveralls = "*"
+cryptography = "*"
 pylint = "*"
 pylint-django = "*"
 pylint-plugin-utils = "*"
 pytest = "*"
 pytest-cov = "*"
 pytest-django = "*"
+python-jose = "*"
 djangorestframework-camel-case = "*"
+djangorestframework-jwt = "*"
 drftoolbox = {editable = true, path = "."}
