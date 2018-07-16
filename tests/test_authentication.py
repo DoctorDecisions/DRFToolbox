@@ -48,6 +48,12 @@ class JWKSToPublicKeyTests(TestCase):
             authentication.jwks_to_public_key('<url-1>', kid='Y')
 
     @patch('urllib.request.urlopen')
+    def test_missing_required_keys(self, mock_urlopen):
+        mock_urlopen.return_value = self._test_jwks_bytes()
+        with pytest.raises(KeyError):
+            authentication.jwks_to_public_key('<url-1>', kid='X', required_keys=['a'])
+
+    @patch('urllib.request.urlopen')
     def test_kid_matched(self, mock_urlopen):
         mock_urlopen.return_value = self._test_jwks_bytes()
         key = authentication.jwks_to_public_key('<url-2>', kid='X')

@@ -21,11 +21,12 @@ from rest_framework.settings import api_settings
 LOGGER = logging.getLogger(__name__)
 
 
-def jwks_to_public_key(url, kid=None, timeout=None):
+def jwks_to_public_key(url, kid=None, required_keys=None, timeout=None):
     """
     Given a URL linking to a public JSON Web Key Set (JWKS), return the public
     key defined, by parsing the certificate.
     """
+    required_keys = set(required_keys or [])
     key = 'jwks-url:{}:{}'.format(url, kid)
     value = cache.get(key)
     if value is None:
@@ -34,8 +35,9 @@ def jwks_to_public_key(url, kid=None, timeout=None):
         jwks = json.loads(resp.read().decode())
         keys = jwks['keys']
         value = None
-        # TODO: should we check for required attributes? (kid and kty)
         for public_key in keys:
+            if not set(public_key.keys()).issuperset(required_keys):
+                continue
             if not kid or kid == public_key['kid']:
                 value = public_key
                 break
@@ -79,6 +81,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     auth_header_prefix = 'Bearer'
     www_authenticate_realm = 'api'
     timeout = 30
+    jwks_required_keys = ['kid', 'kty']
 
     def authenticate_credentials(self, payload):
         """
@@ -123,7 +126,8 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         if jwks_uri is None:
             msg = _('Invalid issuer openid configuration')
             raise exceptions.AuthenticationFailed(msg)
-        key = jwks_to_public_key(url=jwks_uri, kid=header.get('kid'), timeout=self.timeout)
+        key = jwks_to_public_key(url=jwks_uri, kid=header.get('kid'),
+                required_keys=self.jwks_required_keys, timeout=self.timeout)
         if key is None:
             msg = _('Invalid issuer JWKS URI')
             raise exceptions.AuthenticationFailed(msg)
