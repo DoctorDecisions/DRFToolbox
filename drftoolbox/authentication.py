@@ -118,25 +118,38 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         return auth[1]
 
-    def decode_handler(self, token):
-        header = jose_jwt.get_unverified_header(token)
-        claims = jose_jwt.get_unverified_claims(token)
-        config_url = self.openid_configuration_url(claims.get('iss'))
+    def get_public_key(self, issuer, kid=None):
+        config_url = self.openid_configuration_url(issuer)
         jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.timeout)
         if jwks_uri is None:
             msg = _('Invalid issuer openid configuration')
             raise exceptions.AuthenticationFailed(msg)
-        key = jwks_to_public_key(url=jwks_uri, kid=header.get('kid'),
+        key = jwks_to_public_key(url=jwks_uri, kid=kid,
                 required_keys=self.jwks_required_keys, timeout=self.timeout)
         if key is None:
             msg = _('Invalid issuer JWKS URI')
             raise exceptions.AuthenticationFailed(msg)
+        return key
+
+    def decode_handler(self, token):
+        header = jose_jwt.get_unverified_header(token)
+        claims = jose_jwt.get_unverified_claims(token)
+        key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
+        issuers = self.acceptable_issuers()
+        audience = self.acceptable_audience(claims)
+        if not issuers:
+            raise NotImplementedError('at least one issuer must be defined')
+        if claims.get('iss') not in issuers:
+            raise TypeError('invalid issuer')
+        if audience and claims.get('aud') != audience:
+            raise TypeError('invalid audience')
         return jose_jwt.decode(
             token,
             key,
             algorithms=[header.get('alg'),],
-            issuer=self.acceptable_issuers(),
-            audience=self.acceptable_audience(claims),
+            issuer=issuers,
+            audience=audience,
+            options={'verify_aud': (audience is not None)},
         )
 
     def authenticate(self, request):
@@ -150,7 +163,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
-        except (jose_exceptions.JOSEError) as exc:
+        except TypeError:
+            # issuer and/or audience didn't match, move on to the next
+            # authentication module
+            return None
+        except jose_exceptions.JOSEError as exc:
             # for a problem with the token's validity, raise a 401
             raise exceptions.AuthenticationFailed(exc.args[0])
 
