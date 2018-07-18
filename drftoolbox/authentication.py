@@ -158,7 +158,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
             raise jose_exceptions.JWTClaimsError('missing public key')
         return jose_jwt.decode(
             token,
-            key or '',
+            key,
             algorithms=[header.get('alg'),],
             issuer=issuers,
             audience=audience,
