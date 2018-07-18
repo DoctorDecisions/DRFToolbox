@@ -10,6 +10,7 @@
 import logging
 import json
 import urllib.request
+import urllib.error
 
 from django.core.cache import cache
 from django.utils.encoding import smart_text
@@ -17,6 +18,8 @@ from django.utils.translation import ugettext as _
 from jose import jwt as jose_jwt, exceptions as jose_exceptions
 from rest_framework import authentication, exceptions
 from rest_framework.settings import api_settings
+
+from drftoolbox.exceptions import JWTMismatchClaimException
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,18 +34,21 @@ def jwks_to_public_key(url, kid=None, required_keys=None, timeout=None):
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading JWKS')
-        resp = urllib.request.urlopen(url)
-        jwks = json.loads(resp.read().decode())
-        keys = jwks['keys']
-        value = None
-        for public_key in keys:
-            if not set(public_key.keys()).issuperset(required_keys):
-                continue
-            if not kid or kid == public_key['kid']:
-                value = public_key
-                break
-        if value is None:
-            raise KeyError('matching kid not found: {}'.format(kid))
+        try:
+            resp = urllib.request.urlopen(url)
+            jwks = json.loads(resp.read().decode())
+            keys = jwks['keys']
+            value = None
+            for public_key in keys:
+                if not set(public_key.keys()).issuperset(required_keys):
+                    continue
+                if not kid or kid == public_key['kid']:
+                    value = public_key
+                    break
+            if value is None:
+                return None
+        except (ValueError, urllib.error.HTTPError):
+            return None
         cache.set(key, value, timeout)
     return value
 
@@ -56,12 +62,13 @@ def openid_configuration_to_jwks_uri(url, timeout=None):
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading openid configuration')
-        resp = urllib.request.urlopen(url)
+        # TODO: need to catch HTTPError
         try:
+            resp = urllib.request.urlopen(url)
             conf = json.loads(resp.read().decode())
             value = conf.get('jwks_uri')
             cache.set(key, value, timeout)
-        except ValueError:
+        except (ValueError, urllib.error.HTTPError):
             return None
     return value
 
@@ -122,13 +129,14 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         config_url = self.openid_configuration_url(issuer)
         jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.timeout)
         if jwks_uri is None:
-            msg = _('Invalid issuer openid configuration')
-            raise exceptions.AuthenticationFailed(msg)
+            LOGGER.debug('invalid issuer openid configuration: {}'.format(config_url))
+            return None
         key = jwks_to_public_key(url=jwks_uri, kid=kid,
                 required_keys=self.jwks_required_keys, timeout=self.timeout)
         if key is None:
             msg = _('Invalid issuer JWKS URI')
-            raise exceptions.AuthenticationFailed(msg)
+            LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
+            return None
         return key
 
     def decode_handler(self, token):
@@ -140,9 +148,9 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         if not issuers:
             raise NotImplementedError('at least one issuer must be defined')
         if claims.get('iss') not in issuers:
-            raise TypeError('invalid issuer')
+            raise JWTMismatchClaimException('invalid issuer')
         if audience and claims.get('aud') != audience:
-            raise TypeError('invalid audience')
+            raise JWTMismatchClaimException('invalid audience')
         return jose_jwt.decode(
             token,
             key,
@@ -163,7 +171,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
-        except TypeError:
+        except JWTMismatchClaimException:
             # issuer and/or audience didn't match, move on to the next
             # authentication module
             return None
