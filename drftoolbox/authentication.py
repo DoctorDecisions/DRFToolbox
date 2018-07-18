@@ -10,6 +10,7 @@
 import logging
 import json
 import urllib.request
+import urllib.error
 
 from django.core.cache import cache
 from django.utils.encoding import smart_text
@@ -31,18 +32,21 @@ def jwks_to_public_key(url, kid=None, required_keys=None, timeout=None):
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading JWKS')
-        resp = urllib.request.urlopen(url)
-        jwks = json.loads(resp.read().decode())
-        keys = jwks['keys']
-        value = None
-        for public_key in keys:
-            if not set(public_key.keys()).issuperset(required_keys):
-                continue
-            if not kid or kid == public_key['kid']:
-                value = public_key
-                break
-        if value is None:
-            raise KeyError('matching kid not found: {}'.format(kid))
+        try:
+            resp = urllib.request.urlopen(url)
+            jwks = json.loads(resp.read().decode())
+            keys = jwks['keys']
+            value = None
+            for public_key in keys:
+                if not set(public_key.keys()).issuperset(required_keys):
+                    continue
+                if not kid or kid == public_key['kid']:
+                    value = public_key
+                    break
+            if value is None:
+                return None
+        except (ValueError, urllib.error.HTTPError):
+            return None
         cache.set(key, value, timeout)
     return value
 
@@ -56,12 +60,12 @@ def openid_configuration_to_jwks_uri(url, timeout=None):
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading openid configuration')
-        resp = urllib.request.urlopen(url)
         try:
+            resp = urllib.request.urlopen(url)
             conf = json.loads(resp.read().decode())
             value = conf.get('jwks_uri')
             cache.set(key, value, timeout)
-        except ValueError:
+        except (ValueError, urllib.error.HTTPError):
             return None
     return value
 
@@ -80,7 +84,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
     auth_header_prefix = 'Bearer'
     www_authenticate_realm = 'api'
-    timeout = 30
+    cache_timeout = 60 * 5  # 5 minutes
     jwks_required_keys = ['kid', 'kty']
 
     def authenticate_credentials(self, payload):
@@ -91,7 +95,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         raise NotImplementedError
 
     def acceptable_issuers(self):
-        return None
+        """
+        All implementations must override this method and return at least one
+        acceptable issuer
+        """
+        raise NotImplementedError
 
     def acceptable_audience(self, payload):
         return None
@@ -118,31 +126,50 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         return auth[1]
 
+    def get_public_key(self, issuer, kid=None):
+        """
+        Given an issuer, return the JWKS public key by first looking up the
+        JWKS uri via the OpenID Configuration, then finding the matching
+        public key in the JWKS spec
+        """
+        config_url = self.openid_configuration_url(issuer)
+        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.cache_timeout)
+        if jwks_uri is None:
+            LOGGER.debug('invalid issuer openid configuration: {}'.format(config_url))
+            return None
+        key = jwks_to_public_key(url=jwks_uri, kid=kid,
+                required_keys=self.jwks_required_keys, timeout=self.cache_timeout)
+        if key is None:
+            LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
+            return None
+        return key
+
     def decode_handler(self, token):
+        """
+        Decode the JWT, if the issuer and audience within are matches for this
+        class, otherwise raise a JWTMismatchClaimException
+        """
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
-        config_url = self.openid_configuration_url(claims.get('iss'))
-        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.timeout)
-        if jwks_uri is None:
-            msg = _('Invalid issuer openid configuration')
-            raise exceptions.AuthenticationFailed(msg)
-        key = jwks_to_public_key(url=jwks_uri, kid=header.get('kid'),
-                required_keys=self.jwks_required_keys, timeout=self.timeout)
+        issuers = self.acceptable_issuers()
+        audience = self.acceptable_audience(claims)
+        key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
         if key is None:
-            msg = _('Invalid issuer JWKS URI')
-            raise exceptions.AuthenticationFailed(msg)
+            raise jose_exceptions.JWTClaimsError('missing public key')
         return jose_jwt.decode(
             token,
             key,
             algorithms=[header.get('alg'),],
-            issuer=self.acceptable_issuers(),
-            audience=self.acceptable_audience(claims),
+            issuer=issuers,
+            audience=audience,
+            options={'verify_aud': (audience is not None)},
         )
 
     def authenticate(self, request):
         """
         Returns a two-tuple of User and JWT payload if a valid signature has
-        been supplied using JWT-based authentication.  Otherwise returns `None`.
+        been supplied using JWT-based authentication and the issuer and
+        audience is a match for this class, Otherwise returns `None`.
         """
         jwt_value = self.get_jwt_value(request)
         if jwt_value is None:
@@ -150,7 +177,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
-        except (jose_exceptions.JOSEError) as exc:
+        except jose_exceptions.JWTClaimsError:
+            # issuer and/or audience didn't match, move on to the next
+            # authentication module
+            return None
+        except jose_exceptions.JOSEError as exc:
             # for a problem with the token's validity, raise a 401
             raise exceptions.AuthenticationFailed(exc.args[0])
 

@@ -2,6 +2,7 @@
 import json
 import io
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
@@ -44,14 +45,14 @@ class JWKSToPublicKeyTests(TestCase):
     @patch('urllib.request.urlopen')
     def test_kid_not_matched(self, mock_urlopen):
         mock_urlopen.return_value = self._test_jwks_bytes()
-        with pytest.raises(KeyError):
-            authentication.jwks_to_public_key('<url-1>', kid='Y')
+        key = authentication.jwks_to_public_key('<url-1>', kid='Y')
+        assert key is None
 
     @patch('urllib.request.urlopen')
     def test_missing_required_keys(self, mock_urlopen):
         mock_urlopen.return_value = self._test_jwks_bytes()
-        with pytest.raises(KeyError):
-            authentication.jwks_to_public_key('<url-1>', kid='X', required_keys=['a'])
+        key = authentication.jwks_to_public_key('<url-1>', kid='X', required_keys=['a'])
+        assert key is None
 
     @patch('urllib.request.urlopen')
     def test_kid_matched(self, mock_urlopen):
@@ -65,6 +66,22 @@ class JWKSToPublicKeyTests(TestCase):
         for _ in range(2):
             authentication.jwks_to_public_key('<url-3>', kid='X')
         assert mock_urlopen.call_count == 1
+
+    @patch('urllib.request.urlopen')
+    def test_non_json_value(self, mock_urlopen):
+        mock_urlopen.return_value = io.BytesIO(b'<html></html>')
+        key = authentication.jwks_to_public_key('<url-5>')
+        assert key is None
+
+    def test_invalid_url_format(self):
+        key = authentication.jwks_to_public_key('<url-5>')
+        assert key is None
+
+    @patch('urllib.request.urlopen')
+    def test_url_not_found(self, mock_urlopen):
+        mock_urlopen.side_effect = HTTPError('url', '404', 'nf', {}, None)
+        key = authentication.jwks_to_public_key('<url-6>')
+        assert key is None
 
 
 class OpenidConfigurationToJWKSURITests(TestCase):
@@ -95,19 +112,32 @@ class OpenidConfigurationToJWKSURITests(TestCase):
         assert mock_urlopen.call_count == 1
 
     @patch('urllib.request.urlopen')
-    def test_bad_url(self, mock_urlopen):
+    def test_non_json_value(self, mock_urlopen):
         mock_urlopen.return_value = io.BytesIO(b'<html></html>')
         uri = authentication.openid_configuration_to_jwks_uri('<url-4>')
         assert uri is None
 
+    def test_invalid_url_format(self):
+        uri = authentication.openid_configuration_to_jwks_uri('<url-5>')
+        assert uri is None
+
+    @patch('urllib.request.urlopen')
+    def test_url_not_found(self, mock_urlopen):
+        mock_urlopen.side_effect = HTTPError('url', '404', 'nf', {}, None)
+        uri = authentication.openid_configuration_to_jwks_uri('<url-6>')
+        assert uri is None
+
 
 class OpenIdJWTAutenticationTests(TestCase):
-    def test_invalid_jwt(self):
+    def test_wrong_authenticator(self):
         backend = TestOpenIdJWTAuthentication()
         request = RequestFactory().get('/')
         assert backend.authenticate(request) is None
         request = RequestFactory().get('/', HTTP_AUTHORIZATION=b'JWT X')
         assert backend.authenticate(request) is None
+
+    def test_invalid_authorization_header(self):
+        backend = TestOpenIdJWTAuthentication()
         request = RequestFactory().get('/', HTTP_AUTHORIZATION=b'Bearer')
         with pytest.raises(exceptions.AuthenticationFailed):
             backend.authenticate(request)
@@ -127,8 +157,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({}, 'test', headers={})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with pytest.raises(exceptions.AuthenticationFailed):
-            backend.authenticate(request)
+        assert backend.authenticate(request) is None
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -138,8 +167,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({}, 'test', headers={})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with pytest.raises(exceptions.AuthenticationFailed):
-            backend.authenticate(request)
+        assert backend.authenticate(request) is None
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -147,7 +175,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         mock_jwks.return_value = 'bad'
         mock_openid.return_value = '<url>'
         backend = TestOpenIdJWTAuthentication()
-        jwt = jose_jwt.encode({}, 'test', headers={})
+        jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'audience'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
         with pytest.raises(exceptions.AuthenticationFailed):
             backend.authenticate(request)
@@ -158,10 +186,9 @@ class OpenIdJWTAutenticationTests(TestCase):
         mock_jwks.return_value = 'test'
         mock_openid.return_value = '<url>'
         backend = TestOpenIdJWTAuthentication()
-        jwt = jose_jwt.encode({'iss': 'invalid'}, 'test', headers={'alg': 'HS256'})
+        jwt = jose_jwt.encode({'iss': 'invalid', 'aud': 'audience'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with pytest.raises(exceptions.AuthenticationFailed):
-            backend.authenticate(request)
+        assert backend.authenticate(request) is None
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -171,8 +198,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'invalid'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with pytest.raises(exceptions.AuthenticationFailed):
-            backend.authenticate(request)
+        assert backend.authenticate(request) is None
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
