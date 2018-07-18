@@ -84,7 +84,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
     auth_header_prefix = 'Bearer'
     www_authenticate_realm = 'api'
-    timeout = 30
+    cache_timeout = 60 * 5  # 5 minutes
     jwks_required_keys = ['kid', 'kty']
 
     def authenticate_credentials(self, payload):
@@ -133,12 +133,12 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         public key in the JWKS spec
         """
         config_url = self.openid_configuration_url(issuer)
-        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.timeout)
+        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.cache_timeout)
         if jwks_uri is None:
             LOGGER.debug('invalid issuer openid configuration: {}'.format(config_url))
             return None
         key = jwks_to_public_key(url=jwks_uri, kid=kid,
-                required_keys=self.jwks_required_keys, timeout=self.timeout)
+                required_keys=self.jwks_required_keys, timeout=self.cache_timeout)
         if key is None:
             LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
             return None
