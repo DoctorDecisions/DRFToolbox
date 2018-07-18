@@ -19,8 +19,6 @@ from jose import jwt as jose_jwt, exceptions as jose_exceptions
 from rest_framework import authentication, exceptions
 from rest_framework.settings import api_settings
 
-from drftoolbox.exceptions import JWTMismatchClaimException
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -155,14 +153,12 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         claims = jose_jwt.get_unverified_claims(token)
         issuers = self.acceptable_issuers()
         audience = self.acceptable_audience(claims)
-        if claims.get('iss') not in issuers:
-            raise JWTMismatchClaimException('invalid issuer')
-        if audience and claims.get('aud') != audience:
-            raise JWTMismatchClaimException('invalid audience')
         key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
+        if key is None:
+            raise jose_exceptions.JWTClaimsError('missing public key')
         return jose_jwt.decode(
             token,
-            key,
+            key or '',
             algorithms=[header.get('alg'),],
             issuer=issuers,
             audience=audience,
@@ -172,7 +168,8 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     def authenticate(self, request):
         """
         Returns a two-tuple of User and JWT payload if a valid signature has
-        been supplied using JWT-based authentication.  Otherwise returns `None`.
+        been supplied using JWT-based authentication and the issuer and
+        audience is a match for this class, Otherwise returns `None`.
         """
         jwt_value = self.get_jwt_value(request)
         if jwt_value is None:
@@ -180,7 +177,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
-        except JWTMismatchClaimException:
+        except jose_exceptions.JWTClaimsError:
             # issuer and/or audience didn't match, move on to the next
             # authentication module
             return None
