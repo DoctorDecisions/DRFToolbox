@@ -97,7 +97,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         raise NotImplementedError
 
     def acceptable_issuers(self):
-        return None
+        """
+        All implementations must override this method and return at least one
+        acceptable issuer
+        """
+        raise NotImplementedError
 
     def acceptable_audience(self, payload):
         return None
@@ -125,6 +129,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         return auth[1]
 
     def get_public_key(self, issuer, kid=None):
+        """
+        Given an issuer, return the JWKS public key by first looking up the
+        JWKS uri via the OpenID Configuration, then finding the matching
+        public key in the JWKS spec
+        """
         config_url = self.openid_configuration_url(issuer)
         jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.timeout)
         if jwks_uri is None:
@@ -133,18 +142,19 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         key = jwks_to_public_key(url=jwks_uri, kid=kid,
                 required_keys=self.jwks_required_keys, timeout=self.timeout)
         if key is None:
-            msg = _('Invalid issuer JWKS URI')
             LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
             return None
         return key
 
     def decode_handler(self, token):
+        """
+        Decode the JWT, if the issuer and audience within are matches for this
+        class, otherwise raise a JWTMismatchClaimException
+        """
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
         issuers = self.acceptable_issuers()
         audience = self.acceptable_audience(claims)
-        if not issuers:
-            raise NotImplementedError('at least one issuer must be defined')
         if claims.get('iss') not in issuers:
             raise JWTMismatchClaimException('invalid issuer')
         if audience and claims.get('aud') != audience:
