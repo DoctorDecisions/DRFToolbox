@@ -62,7 +62,6 @@ def openid_configuration_to_jwks_uri(url, timeout=None):
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading openid configuration')
-        # TODO: need to catch HTTPError
         try:
             resp = urllib.request.urlopen(url)
             conf = json.loads(resp.read().decode())
@@ -142,7 +141,6 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     def decode_handler(self, token):
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
-        key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
         issuers = self.acceptable_issuers()
         audience = self.acceptable_audience(claims)
         if not issuers:
@@ -151,6 +149,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
             raise JWTMismatchClaimException('invalid issuer')
         if audience and claims.get('aud') != audience:
             raise JWTMismatchClaimException('invalid audience')
+        key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
         return jose_jwt.decode(
             token,
             key,
