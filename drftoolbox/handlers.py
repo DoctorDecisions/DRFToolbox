@@ -75,6 +75,13 @@ def error_list_exception_handler(exc, context, delimiter='/'):
 
     # case 2) the validation errors are nested underneath field
     # name keys
+    def fix_int_keys(obj):
+        if not isinstance(obj, dict):
+            return obj
+        return {str(k): fix_int_keys(v) for k, v in obj.items()}
+    # some keys maybe ints and not strings, run this function to convert all
+    # keys to strings
+    details = fix_int_keys(details)
     flattened = flatdict.FlatterDict(details, delimiter)
     fields = {}
     # the error data can be nested into an arbitrary number of levels because of

@@ -30,6 +30,7 @@ class TestSerializer(serializers.Serializer):
     underscore_field = serializers.CharField(required=False)
     child = ChildSerializer(required=False)
     children = ChildSerializer(many=True, required=False)
+    array = serializers.ListField(child=serializers.CharField(), required=False)
 
     def validate(self, data):
         if data.get('name') == 'invalid' or data.get('value') == 'invalid':
@@ -235,6 +236,24 @@ class ExceptionHandlerTests(TestCase):
                             'code': 'invalid',
                             'message': 'cant use none',
                             'source': '/underscoreField',
+                        },
+                    ]
+                }
+
+    def test_validation_error_with_array(self):
+        data = {'name': 'valid', 'value': 'valid', 'array': [None]}
+        serializer = TestSerializer(data=data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as exc:
+            resp = handlers.error_list_exception_handler(exc, {})
+            assert resp.status_code == 400
+            assert resp.data == {
+                    'errors': [
+                        {
+                            'code': 'null',
+                            'message': 'This field may not be null.',
+                            'source': '/array/0',
                         },
                     ]
                 }
