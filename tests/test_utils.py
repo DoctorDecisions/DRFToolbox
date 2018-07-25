@@ -4,7 +4,7 @@ import json
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.urls import path
-from rest_framework import viewsets, response
+from rest_framework import viewsets, response, request
 from rest_framework.reverse import reverse
 
 from drftoolbox import utils
@@ -23,13 +23,18 @@ urlpatterns = [
 
 class InlineRenderTests(TestCase):
     def setUp(self):
-        self.factory = RequestFactory()
-        self.request = self.factory.get('/')
+        self.request = RequestFactory().get('/')
         self.request.urlconf = __name__
 
     def test_get_for_view(self):
         self.request.user = get_user_model().objects.create_user('test', 'pass')
         resp = utils.inline_render('GET', '/test/', self.request)
+        assert resp == {'data': 'test'}
+
+    def test_get_for_view_with_drf_request(self):
+        self.request.user = get_user_model().objects.create_user('test', 'pass')
+        req = request.Request(self.request)
+        resp = utils.inline_render('GET', '/test/', req)
         assert resp == {'data': 'test'}
 
     def test_get_for_view_with_querydict(self):

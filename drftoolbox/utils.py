@@ -26,22 +26,8 @@ def inline_render(method, url, request, query_dict=None, accepts=None):
     """
     resolver = resolve(url, getattr(request, 'urlconf'))
     if hasattr(request, '_request'):
-        # NOTE: DRF's `Request` wrapper provides `__getattribute__` so that
-        # if an attr isn't present, it searches the wrapped `WSGIRequest`
-        # under `_request`. Somewhere between py2.7 and py3.5 the mixing of
-        # this proxying with how `copy.copy()` works now leads to infinite
-        # recursion when `__setstate__` is accessed during copy. If the
-        # request is from DRF, the underlying `WSGIRequest` must be copied
-        # and the wrapper reconstructed manually.
-        request = drf_request.Request(
-            copy.copy(request._request),
-            parsers=request.parsers,
-            authenticators=request.authenticators,
-            negotiator=request.negotiator,
-            parser_context=request.parser_context,
-        )
-    else:
-        request = copy.copy(request)
+        request = request._request
+    request = copy.copy(request)
     request.path = url
     request.method = method
     if query_dict:
