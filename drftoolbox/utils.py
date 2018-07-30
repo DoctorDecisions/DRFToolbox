@@ -38,9 +38,8 @@ def inline_render(method, url, request, query_dict=None, accepts=None):
         # the cached value so next access rebuilds it with the above changes.
         # This covers direct Django requests and DRF requests that wrap the
         # original request into `_request`.
-        req = getattr(request, '_request', request)
-        if 'GET' in req.__dict__.keys():
-            del req.GET
+        if 'GET' in request.__dict__.keys():
+            del request.GET
     # Directly call the corresponding action from the `as_view()` configuration
     # based on the given method and current request.
     func = resolver.func
