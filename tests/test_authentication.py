@@ -3,6 +3,7 @@ import json
 import io
 from unittest.mock import patch
 from urllib.error import HTTPError
+import warnings
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
@@ -24,8 +25,8 @@ class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
     def acceptable_issuers(self):
         return ['issuer']
 
-    def acceptable_audience(self, payload):
-        return 'audience'
+    def acceptable_audiences(self, payload):
+        return ['audience1', 'audience2']
 
 
 class JWKSToPublicKeyTests(TestCase):
@@ -228,7 +229,36 @@ class OpenIdJWTAutenticationTests(TestCase):
         mock_jwks.return_value = 'test'
         mock_openid.return_value = '<url>'
         backend = TestOpenIdJWTAuthentication()
-        payload = {'iss': 'issuer', 'aud': 'audience', 'user_id': user.id}
+        payload = {'iss': 'issuer', 'aud': 'audience1', 'user_id': user.id}
         jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
         assert backend.authenticate(request) == (user, payload)
+        payload = {'iss': 'issuer', 'aud': 'audience2', 'user_id': user.id}
+        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
+        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
+        assert backend.authenticate(request) == (user, payload)
+
+    @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
+    @patch('drftoolbox.authentication.jwks_to_public_key')
+    def test_valid_user_audience_deprecation(self, mock_jwks, mock_openid):
+        user = get_user_model().objects.create_user('test')
+        mock_jwks.return_value = 'test'
+        mock_openid.return_value = '<url>'
+        backend = TestOpenIdJWTAuthentication()
+        backend.acceptable_audience = lambda self: 'audience1'
+        payload = {'iss': 'issuer', 'aud': 'audience1', 'user_id': user.id}
+        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
+        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            assert backend.authenticate(request) == (user, payload)
+            assert len(w) == 1
+            assert w[0].category == DeprecationWarning
+        payload = {'iss': 'issuer', 'aud': 'audience2', 'user_id': user.id}
+        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
+        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            assert backend.authenticate(request) is None
+            assert len(w) == 1
+            assert w[0].category == DeprecationWarning

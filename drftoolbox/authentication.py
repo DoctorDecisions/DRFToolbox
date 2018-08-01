@@ -11,6 +11,7 @@ import logging
 import json
 import urllib.request
 import urllib.error
+import warnings
 
 from django.core.cache import cache
 from django.utils.encoding import smart_text
@@ -101,8 +102,8 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         """
         raise NotImplementedError
 
-    def acceptable_audience(self, payload):
-        return None
+    def acceptable_audiences(self, payload):
+        return []
 
     def openid_configuration_url(self, iss):
         return '{}.well-known/openid-configuration'.format(iss)
@@ -152,18 +153,38 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
         issuers = self.acceptable_issuers()
-        audience = self.acceptable_audience(claims)
+        audiences = self.acceptable_audiences(claims)
+        if hasattr(self, 'acceptable_audience'):
+            msg = (
+                '"acceptable_audience()" is deprecated, '
+                'please update {} to use "acceptable_audiences()"'
+            ).format(type(self).__name__)
+            warnings.warn(msg, DeprecationWarning)
+            audiences = [getattr(self, 'acceptable_audience')(claims),]
         key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
         if key is None:
             raise jose_exceptions.JWTClaimsError('missing public key')
-        return jose_jwt.decode(
-            token,
-            key,
-            algorithms=[header.get('alg'),],
-            issuer=issuers,
-            audience=audience,
-            options={'verify_aud': (audience is not None)},
-        )
+        if not audiences:
+            audiences = [None,]
+        for idx, aud in enumerate(audiences, start=1):
+            # is possible to have more than 1 acceptable audience per issuer
+            # thus we should attempt to decode with each possible audience
+            # if a ClaimError is raised, move on to the next, however when we
+            # have exhausted all of our audiences, pass the ClaimError on to
+            # the caller
+            try:
+                return jose_jwt.decode(
+                    token,
+                    key,
+                    algorithms=[header.get('alg'),],
+                    issuer=issuers,
+                    audience=aud,
+                    options={'verify_aud': (aud is not None)},
+                )
+            except jose_exceptions.JWTClaimsError:
+                if idx == len(audiences):
+                    raise
+
 
     def authenticate(self, request):
         """
