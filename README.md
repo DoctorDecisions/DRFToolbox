@@ -4,7 +4,7 @@ Contained within this library are a set of utility modules and functions,
 specific to the [Django Rest Framework](https://github.com/encode/django-rest-framework/),
 that our team finds useful for developing APIs.
 
-[![CircleCI](https://circleci.com/gh/DoctorDecisions/DRFToolbox.svg?style=svg&circle-token=a9cf2a90de69cdbcb919d58cd73c25f7e77f7ad8)](https://circleci.com/gh/DoctorDecisions/OmniService)
+[![CircleCI](https://circleci.com/gh/DoctorDecisions/DRFToolbox.svg?style=svg&circle-token=a9cf2a90de69cdbcb919d58cd73c25f7e77f7ad8)](https://circleci.com/gh/DoctorDecisions/DRFToolbox)
 [![Coverage Status](https://coveralls.io/repos/github/DoctorDecisions/DRFToolbox/badge.svg?t=ySeEKr)](https://coveralls.io/github/DoctorDecisions/DRFToolbox)
 
 ## Development
