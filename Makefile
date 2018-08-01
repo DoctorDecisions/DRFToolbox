@@ -7,6 +7,7 @@ TESTS ?= tests
 init :  ## install and upgrade project deps
 	pip install pipenv --upgrade
 	pipenv install --dev -e .
+	pipenv update
 build :  ## install locked project deps
 	pip install pipenv
 	pipenv sync --dev
