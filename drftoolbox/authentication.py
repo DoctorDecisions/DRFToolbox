@@ -76,25 +76,28 @@ def openid_configuration_to_jwks_uri(url, timeout=None):
     return value
 
 
-def kms_encrypted_user_key(arn, user, timeout=None, client=None):
+def kms_decrypted_url_key(url, client=None, timeout=None):
     """
-    Caches and returns base64-encoded AWS KMS-encrypted key, which is
-    not secret, since it can only be decoded by another service with
-    appropriate KMS credentials
+    Given a URL linking to a encrypted KMS key, return the decrypted value by
+    downloading the key, and using AWS KMS to decrypt
     """
-    if client is None:
-        client = boto3.client('kms')
-    key = 'hmac-user-key:{}'.format(user.pk)
-    val = cache.get(key)
-    if val is None:
+    key = 'kmskey-url:{}'.format(url)
+    value = cache.get(key)
+    if value is None:
         LOGGER.debug('loading KMS key')
-        raw_val = client.encrypt(
-            KeyId=arn,
-            Plaintext=get_random_string(length=50)
-        )['CiphertextBlob']
-        val = base64.b64encode(raw_val)
-        cache.set(key, val, timeout=timeout)
-    return val
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read().decode())
+        encrypted_key = base64.b64decode(data['encrypted_key'])
+        expiry = data.get('expiry')
+        if expiry:
+            expires_at = dateparse.parse_datetime(expiry)
+            if timezone.is_naive(expires_at):
+                expires_at = timezone.make_aware(expires_at)
+            timeout = (expires_at - timezone.now()).seconds
+        client = client or boto3.client('kms')
+        value = client.decrypt(CiphertextBlob=encrypted_key)['Plaintext']
+        cache.set(key, value, timeout)
+    return value
 
 
 class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
@@ -280,10 +283,12 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
     def fetch_user_data(self, api_key):
         try:
             user = self.get_user(api_key)
-            secret = kms_encrypted_user_key(
-                arn=self.get_aws_kms_arn(),
-                user=user,
-                timeout=self.cache_timeout)
-            return user, secret
+            if user is not None:
+                secret = kms_encrypted_user_key(
+                    arn=self.get_aws_kms_arn(),
+                    user=user,
+                    timeout=self.cache_timeout)
+                return user, secret
         except (ObjectDoesNotExist, ValueError):
-            return None
+            pass
+        return None

@@ -139,27 +139,45 @@ class OpenidConfigurationToJWKSURITests(TestCase):
         assert uri is None
 
 
-class KMSEncryptedUserKeyTests(TestCase):
-    def setUp(self):
-        self.kms_client = boto3.client('kms', region_name='us-east-1')
-        self.stubber = Stubber(self.kms_client)
+class KMSDecryptedUrlKeyTests(TestCase):
+    def _test_decrypted_key_bytes(self, expires_in=300):
+        ts = datetime.datetime.now() + datetime.timedelta(seconds=expires_in)
+        return io.BytesIO('''
+            {{
+                "encrypted_key": "PGtleT4=",
+                "expiry": "{}"
+            }}
+            '''.format(ts.isoformat()).encode())
 
-    def test_encrypt_user_key(self):
-        user = get_user_model().objects.create_user('test')
-        self.stubber.add_response('encrypt', {'CiphertextBlob': b'kms-key'})
-        self.stubber.activate()
-        val = authentication.kms_encrypted_user_key('ARN', user,
-            client=self.kms_client)
-        assert val == b'a21zLWtleQ=='
+    def _test_kms_decrypt(self):
+        return {
+            'KeyId': 'key',
+            'ResponseMetadata': {},
+            'Plaintext': b'<secret>',
+        }
 
-    def test_cache_used(self):
-        user = get_user_model().objects.create_user('test')
-        self.stubber.add_response('encrypt', {'CiphertextBlob': b'kms-key'})
-        self.stubber.add_client_error('encrypt', 'should not be reached')
-        self.stubber.activate()
+    @patch('urllib.request.urlopen')
+    def test_decrypt(self, mock_urlopen):
+        client = boto3.client('kms')
+        stubber = Stubber(client)
+        expected_params = {'CiphertextBlob': b'<key>'}
+        stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
+        stubber.activate()
+        mock_urlopen.return_value = self._test_decrypted_key_bytes()
+        secret = authentication.kms_decrypted_url_key('<url>', client=client)
+        assert secret == b'<secret>'
+
+    @patch('urllib.request.urlopen')
+    def test_cache_used(self, mock_urlopen):
+        client = boto3.client('kms')
+        stubber = Stubber(client)
+        expected_params = {'CiphertextBlob': b'<key>'}
+        stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
+        stubber.activate()
+        mock_urlopen.return_value = self._test_decrypted_key_bytes()
         for _ in range(2):
-            val = authentication.kms_encrypted_user_key('ARN', user,
-                client=self.kms_client)
+            authentication.kms_decrypted_url_key('<url>', client=client)
+        assert mock_urlopen.call_count == 1
 
 
 class OpenIdJWTAutenticationTests(TestCase):
