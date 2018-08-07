@@ -141,7 +141,7 @@ class OpenidConfigurationToJWKSURITests(TestCase):
 
 class KMSEncryptedUserKeyTests(TestCase):
     def setUp(self):
-        self.kms_client = boto3.client('kms')
+        self.kms_client = boto3.client('kms', region_name='us-east-1')
         self.stubber = Stubber(self.kms_client)
 
     def test_encrypt_user_key(self):
