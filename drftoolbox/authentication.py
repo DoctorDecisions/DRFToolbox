@@ -7,18 +7,23 @@
 
     :copyright: (c) 2018 by Medical Decisions LLC
 """
+import base64
 import logging
 import json
 import urllib.request
 import urllib.error
 import warnings
 
+import boto3
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils.crypto import get_random_string
 from django.utils.encoding import smart_text
 from django.utils.translation import ugettext as _
 from jose import jwt as jose_jwt, exceptions as jose_exceptions
 from rest_framework import authentication, exceptions
 from rest_framework.settings import api_settings
+from rest_framework_httpsignature.authentication import SignatureAuthentication
 
 LOGGER = logging.getLogger(__name__)
 
@@ -69,6 +74,27 @@ def openid_configuration_to_jwks_uri(url, timeout=None):
         except (ValueError, urllib.error.HTTPError):
             return None
     return value
+
+
+def kms_encrypted_user_key(arn, user, timeout=None, client=None):
+    """
+    Caches and returns base64-encoded AWS KMS-encrypted key, which is
+    not secret, since it can only be decoded by another service with
+    appropriate KMS credentials
+    """
+    if client is None:
+        client = boto3.client('kms')
+    key = 'hmac-user-key:{}'.format(user.pk)
+    val = cache.get(key)
+    if val is None:
+        LOGGER.debug('loading KMS key')
+        raw_val = client.encrypt(
+            KeyId=arn,
+            Plaintext=get_random_string(length=50)
+        )['CiphertextBlob']
+        val = base64.b64encode(raw_val)
+        cache.set(key, val, timeout=timeout)
+    return val
 
 
 class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
@@ -217,3 +243,47 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         authentication scheme should return `403 Permission Denied` responses.
         """
         return '{0} realm="{1}"'.format(self.auth_header_prefix, self.www_authenticate_realm)
+
+
+class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
+    """
+    DRF Authentication backend for HTTP signatures based on
+    https://github.com/etoccalino/django-rest-framework-httpsignature
+
+    Authorization: Signature keyId="<user-uid>",algorithm="<algorithm>",headers="<header1> <header2>",signature="<signature>"
+     - `keyId` is a User's primary key as a string
+     - `algorithm` must be one of the following: rsa-sha1, rsa-sha256,
+        rsa-sha512, hmac-sha1, hmac-sha256, hmac-sha512.  "hmac-sha256" is the
+        inferred default value if not specified.
+     - `headers` is a space-delimited list of headers which were signed. A
+        default value of "date" is inferred if none are specified.
+        "(request-target)" is a valid header value.
+     - `signature` is a Base64-encoded signature of the header values using
+        the algorithm specified in `algorithm`
+
+    Example Python implementation using `httpsig` and `requests`:
+        import json
+        import requests
+        from httpsig.requests_auth import HTTPSignatureAuth
+        auth = HTTPSignatureAuth(key_id='<user-pk>', secret=b'<user-secret>')
+        resp = requests.get('https://api.example.com/endpoint', auth=auth)
+    """
+    cache_timeout = 60 * 5  # 5 minutes
+
+    @classmethod
+    def get_aws_kms_arn(cls):
+        raise NotImplementedError
+
+    def get_user(self, api_key):
+        raise NotImplementedError
+
+    def fetch_user_data(self, api_key):
+        try:
+            user = self.get_user(api_key)
+            secret = kms_encrypted_user_key(
+                arn=self.get_aws_kms_arn(),
+                user=user,
+                timeout=self.cache_timeout)
+            return user, secret
+        except (ObjectDoesNotExist, ValueError):
+            return None

@@ -5,6 +5,8 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 import warnings
 
+import boto3
+from botocore.stub import Stubber
 from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from jose import jwt as jose_jwt
@@ -27,6 +29,14 @@ class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
 
     def acceptable_audiences(self, payload):
         return ['audience1', 'audience2']
+
+
+class TestKMSSecretAPISignatureAuthentucation(authentication.BaseKMSSecretAPISignatureAuthentication):
+    def get_aws_kms_arn(self):
+        return 'ARN'
+
+    def get_user(self, api_key):
+        return get_user_model().objects.get(username=api_key)
 
 
 class JWKSToPublicKeyTests(TestCase):
@@ -127,6 +137,29 @@ class OpenidConfigurationToJWKSURITests(TestCase):
         mock_urlopen.side_effect = HTTPError('url', '404', 'nf', {}, None)
         uri = authentication.openid_configuration_to_jwks_uri('<url-6>')
         assert uri is None
+
+
+class KMSEncryptedUserKeyTests(TestCase):
+    def setUp(self):
+        self.kms_client = boto3.client('kms')
+        self.stubber = Stubber(self.kms_client)
+
+    def test_encrypt_user_key(self):
+        user = get_user_model().objects.create_user('test')
+        self.stubber.add_response('encrypt', {'CiphertextBlob': b'kms-key'})
+        self.stubber.activate()
+        val = authentication.kms_encrypted_user_key('ARN', user,
+            client=self.kms_client)
+        assert val == b'a21zLWtleQ=='
+
+    def test_cache_used(self):
+        user = get_user_model().objects.create_user('test')
+        self.stubber.add_response('encrypt', {'CiphertextBlob': b'kms-key'})
+        self.stubber.add_client_error('encrypt', 'should not be reached')
+        self.stubber.activate()
+        for _ in range(2):
+            val = authentication.kms_encrypted_user_key('ARN', user,
+                client=self.kms_client)
 
 
 class OpenIdJWTAutenticationTests(TestCase):
@@ -262,3 +295,21 @@ class OpenIdJWTAutenticationTests(TestCase):
             assert backend.authenticate(request) is None
             assert len(w) == 1
             assert w[0].category == DeprecationWarning
+
+
+class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('test')
+
+    @patch('drftoolbox.authentication.kms_encrypted_user_key')
+    def test_fetch_valid_user(self, mock_user_key):
+        mock_user_key.return_value = 'b2s='
+        backend = TestKMSSecretAPISignatureAuthentucation()
+        data = backend.fetch_user_data(self.user.username)
+        assert data[0] == self.user
+        assert data[1] == 'b2s='
+
+    def test_fetch_invalid_user(self):
+        backend = TestKMSSecretAPISignatureAuthentucation()
+        data = backend.fetch_user_data('invalid')
+        assert data is None
