@@ -39,6 +39,8 @@ class TestKMSSecretAPISignatureAuthentucation(authentication.BaseKMSSecretAPISig
         return 'ARN'
 
     def get_user(self, api_key):
+        if api_key == 'missing':
+            return None
         return get_user_model().objects.get(username=api_key)
 
 
@@ -314,6 +316,8 @@ class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
     def test_fetch_invalid_user(self):
         data = self.backend.fetch_user_data('invalid')
         assert data is None
+        data = self.backend.fetch_user_data('missing')
+        assert data is None
 
     def test_encrypt_user_secret(self):
         self.stubber.add_response('encrypt', {'CiphertextBlob': b'kms-key'})
@@ -349,3 +353,13 @@ class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
         for _ in range(2):
             self.backend.decrypted_url_secret('<url>')
         assert mock_urlopen.call_count == 1
+
+    def test_user_secret(self):
+        secret1 = self.backend.user_secret(self.user)
+        assert jose_jwt.get_unverified_claims(secret1) == {'user_pk': 1}
+        secret2 = self.backend.user_secret(self.user)
+        assert secret1 == secret2
+        self.user.secret_payload = lambda: {'version': 1}
+        secret3 = self.backend.user_secret(self.user)
+        assert secret1 != secret3
+        assert jose_jwt.get_unverified_claims(secret3) == {'user_pk': 1, 'version': 1}

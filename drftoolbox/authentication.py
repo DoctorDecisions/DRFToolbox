@@ -269,6 +269,7 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
     client = None
     encrypted_secret_field = 'encrypted_key'
     expiry_field = 'expiry'
+    user_secret_payload_method = 'secret_payload'
 
     def get_aws_kms_arn(self):
         raise NotImplementedError
@@ -277,7 +278,13 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
         raise NotImplementedError
 
     def user_secret(self, user):
-        payload = getattr(user, 'secret_payload', {})
+        """
+        Return a JWT based user specific secret.  The secret will be based on
+        the User's primary key, however the implementor can define a method on
+        the User class to change the payload that is encrypted, which is useful
+        if you want to cycle the secrets on a regular basis
+        """
+        payload = getattr(user, self.user_secret_payload_method, {})
         if payload:
             payload = payload() if callable(payload) else payload
         payload['user_pk'] = user.pk
