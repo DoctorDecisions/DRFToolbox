@@ -9,11 +9,14 @@ from setuptools import setup, find_packages
 REQUIRES_PYTHON = '>=3.5.0'
 # What packages are required for this module to be executed?
 REQUIRED = [
+    'boto3>=1.7.0',
     'cryptography>=2.3.0',
     'djangorestframework>=3.0.0',
+    'djangorestframework-httpsignature>=1.0.0',
     'Django>=1.11.0',
     'flatdict',
     'python-jose',
+    'pytz',
 ]
 EXTRA_REQUIRED = {
     'camelize': ['djangorestframework-camel-case>=0.2.0',],
