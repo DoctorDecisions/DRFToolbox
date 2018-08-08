@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 import datetime
-import json
 
 import boto3
 from botocore.stub import Stubber
-from django.test import TestCase, RequestFactory
+from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.urls import path
-from rest_framework import views, viewsets, response, request
-from rest_framework.reverse import reverse
+import pytest
+from rest_framework import views
 
 from drftoolbox import serializers, authentication
 
@@ -49,3 +47,9 @@ class UserKMSKeySerializerTests(TestCase):
         assert data['expiry'] is not None
         ttl = datetime.datetime.now() + datetime.timedelta(seconds=5)
         assert abs(data['expiry'] - ttl) < datetime.timedelta(seconds=1)
+
+    def test_view_with_no_http_sign_class(self):
+        user = get_user_model().objects.create_user('test')
+        serializer = serializers.UserKMSKeySerializer(context={'view': views.APIView()})
+        with pytest.raises(AssertionError):
+            serializer.to_representation(user)

@@ -13,8 +13,7 @@ from django.core.cache import caches
 from django.test import TestCase, RequestFactory
 from jose import jwt as jose_jwt
 import pytest
-from rest_framework import views, serializers, exceptions
-from rest_framework.settings import api_settings
+from rest_framework import exceptions
 
 from drftoolbox import authentication
 
