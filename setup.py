@@ -16,6 +16,7 @@ REQUIRED = [
     'Django>=1.11.0',
     'flatdict',
     'python-jose',
+    'pytz',
 ]
 EXTRA_REQUIRED = {
     'camelize': ['djangorestframework-camel-case>=0.2.0',],
