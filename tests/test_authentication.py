@@ -162,7 +162,7 @@ class KMSDecryptedUrlSecretTests(TestCase):
 
     @patch('urllib.request.urlopen')
     def test_decrypt(self, mock_urlopen):
-        client = boto3.client('kms')
+        client = boto3.client('kms', region_name='us-east-1')
         stubber = Stubber(client)
         expected_params = {'CiphertextBlob': b'<key>'}
         stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
@@ -173,7 +173,7 @@ class KMSDecryptedUrlSecretTests(TestCase):
 
     @patch('urllib.request.urlopen')
     def test_cache_used(self, mock_urlopen):
-        client = boto3.client('kms')
+        client = boto3.client('kms', region_name='us-east-1')
         stubber = Stubber(client)
         expected_params = {'CiphertextBlob': b'<key>'}
         stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
