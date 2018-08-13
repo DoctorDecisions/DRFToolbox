@@ -143,6 +143,47 @@ class OpenidConfigurationToJWKSURITests(TestCase):
         assert uri is None
 
 
+class KMSDecryptedUrlSecretTests(TestCase):
+    def _test_decrypted_secret_bytes(self, expires_in=300):
+        ts = datetime.datetime.now() + datetime.timedelta(seconds=expires_in)
+        return io.BytesIO('''
+            {{
+                "encrypted_key": "PGtleT4=",
+                "expiry": "{}"
+            }}
+            '''.format(ts.isoformat()).encode())
+
+    def _test_kms_decrypt(self):
+        return {
+            'KeyId': 'key',
+            'ResponseMetadata': {},
+            'Plaintext': b'<secret>',
+        }
+
+    @patch('urllib.request.urlopen')
+    def test_decrypt(self, mock_urlopen):
+        client = boto3.client('kms')
+        stubber = Stubber(client)
+        expected_params = {'CiphertextBlob': b'<key>'}
+        stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
+        stubber.activate()
+        mock_urlopen.return_value = self._test_decrypted_secret_bytes()
+        secret = authentication.kms_decrypted_url_secret('<url>', client=client)
+        assert secret == b'<secret>'
+
+    @patch('urllib.request.urlopen')
+    def test_cache_used(self, mock_urlopen):
+        client = boto3.client('kms')
+        stubber = Stubber(client)
+        expected_params = {'CiphertextBlob': b'<key>'}
+        stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
+        stubber.activate()
+        mock_urlopen.return_value = self._test_decrypted_secret_bytes()
+        for _ in range(2):
+            authentication.kms_decrypted_url_secret('<url>', client=client)
+        assert mock_urlopen.call_count == 1
+
+
 class OpenIdJWTAutenticationTests(TestCase):
     def test_wrong_authenticator(self):
         backend = TestOpenIdJWTAuthentication()
@@ -333,25 +374,6 @@ class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
         self.stubber.activate()
         for _ in range(2):
             self.backend.encrypted_user_secret(self.user)
-
-    @patch('urllib.request.urlopen')
-    def test_decrypt_url_secret(self, mock_urlopen):
-        expected_params = {'CiphertextBlob': b'<key>'}
-        self.stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
-        self.stubber.activate()
-        mock_urlopen.return_value = self._test_decrypted_key_bytes()
-        secret = self.backend.decrypted_url_secret('<url>')
-        assert secret == b'<secret>'
-
-    @patch('urllib.request.urlopen')
-    def test_decrypt_url_secret_cache_used(self, mock_urlopen):
-        expected_params = {'CiphertextBlob': b'<key>'}
-        self.stubber.add_response('decrypt', self._test_kms_decrypt(), expected_params)
-        self.stubber.activate()
-        mock_urlopen.return_value = self._test_decrypted_key_bytes()
-        for _ in range(2):
-            self.backend.decrypted_url_secret('<url>')
-        assert mock_urlopen.call_count == 1
 
     def test_user_secret(self):
         secret1 = self.backend.user_secret(self.user)

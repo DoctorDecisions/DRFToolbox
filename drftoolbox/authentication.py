@@ -81,6 +81,40 @@ def openid_configuration_to_jwks_uri(url, cache=None, timeout=None):
     return value
 
 
+def kms_decrypt(value, client=None):
+    """
+    Given a base64 encoded and KMS encrypted value, decode and decrypt
+    """
+    client = client or boto3.client('kms')
+    decoded = base64.b64decode(value)
+    return client.decrypt(CiphertextBlob=decoded)['Plaintext']
+
+
+def kms_decrypted_url_secret(url, encrypted_field='encrypted_key',
+        expiry_field='expiry', client=None, cache=None, timeout=None):
+    """
+    Given a URL linking to a encrypted KMS key, return the decrypted value by
+    downloading the key, and using AWS KMS to decrypt
+    """
+    cache = cache or caches['default']
+    key = 'kmssig-url-secret:{}'.format(url)
+    value = cache.get(key)
+    if value is None:
+        LOGGER.debug('loading KMS key')
+        resp = urllib.request.urlopen(url)
+        data = json.loads(resp.read().decode())
+        expiry = data.get(expiry_field)
+        if expiry:
+            now = datetime.datetime.now(tz=pytz.utc).replace(microsecond=0)
+            expires_at = dateparse.parse_datetime(expiry)
+            if timezone.is_naive(expires_at):
+                expires_at = timezone.make_aware(expires_at)
+            timeout = (expires_at - now).seconds
+        value = kms_decrypt(data[encrypted_field], client=client)
+        cache.set(key, value, timeout)
+    return value
+
+
 class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
     Use this base class to implement a OpenID configuration based JWT authentication
@@ -267,8 +301,6 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
     cache_timeout = 60 * 5  # 5 minutes
     cache_name = 'default'
     client = None
-    encrypted_secret_field = 'encrypted_key'
-    expiry_field = 'expiry'
     user_secret_payload_method = 'secret_payload'
 
     def get_aws_kms_arn(self):
@@ -314,39 +346,8 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
             LOGGER.warning('cache backend does not support time-to-live')
             return val, None
         ttl = ttl or cache.ttl(key)
+        now = datetime.datetime.now(tz=pytz.utc).replace(microsecond=0)
         return val, timezone.now() + datetime.timedelta(seconds=ttl)
-
-    def decrypt(self, value):
-        """
-        Given a base64 encoded and KMS encrypted value, decode and decrypt
-        """
-        client = self.client or boto3.client('kms')
-        decoded = base64.b64decode(value)
-        return client.decrypt(CiphertextBlob=decoded)['Plaintext']
-
-    def decrypted_url_secret(self, url):
-        """
-        Given a URL linking to a encrypted KMS key, return the decrypted value by
-        downloading the key, and using AWS KMS to decrypt
-        """
-        client = self.client or boto3.client('kms')
-        cache = caches[self.cache_name]
-        key = 'kmssig-url-secret:{}'.format(url)
-        value = cache.get(key)
-        if value is None:
-            LOGGER.debug('loading KMS key')
-            resp = urllib.request.urlopen(url)
-            data = json.loads(resp.read().decode())
-            expiry = data.get(self.expiry_field)
-            if expiry:
-                now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
-                expires_at = dateparse.parse_datetime(expiry)
-                if timezone.is_naive(expires_at):
-                    expires_at = timezone.make_aware(expires_at)
-                timeout = (expires_at - now).seconds
-            value = self.decrypt(data[self.encrypted_secret_field])
-            cache.set(key, value, self.cache_timeout)
-        return value
 
     def fetch_user_data(self, api_key):
         try:
