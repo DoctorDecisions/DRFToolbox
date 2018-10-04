@@ -14,7 +14,7 @@ build :  ## install locked project deps
 test :  ## run the test cases
 	pytest $(TESTS)
 coverage :  ## run the test cases and build a coverage report
-	pytest --cov=drftoolbox --cov-config=.coveragerc $(TESTS) && coverage combine --rcfile=.coveragerc
+	pytest --cov=drftoolbox --cov-config=.coveragerc $(TESTS)
 lint :  ## run pylint
 	pylint drftoolbox
 clean :  ## remove any existing compiled python files
