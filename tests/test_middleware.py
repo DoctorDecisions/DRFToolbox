@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from test.support import EnvironmentVarGuard
+from unittest.mock import patch
 
 from django.test import TestCase, RequestFactory
 from django.http import HttpResponse, StreamingHttpResponse
@@ -10,7 +10,7 @@ from drftoolbox import middleware
 class XSSJsonMiddlewareTests(TestCase):
     def setUp(self):
         self.req = RequestFactory().get('/')
-        self.env = EnvironmentVarGuard()
+        self.enabled_key = middleware.XSSJsonMiddleware.ENABLED_ENV
 
     def test_nothing_to_escape(self):
         get_resp = lambda r: HttpResponse(
@@ -41,20 +41,18 @@ class XSSJsonMiddlewareTests(TestCase):
         assert resp.content == b'{"k": "t\\u0026j"}'
 
     def test_disabled(self):
-        self.env.set(middleware.XSSJsonMiddleware.ENABLED_ENV, 'false')
         get_resp = lambda r: HttpResponse(
             content_type='application/json', content=b'{"k": "t&j"}')
         mid = middleware.XSSJsonMiddleware(get_resp)
-        with self.env:
+        with patch.dict('os.environ', {self.enabled_key: 'false'}):
             resp = mid(self.req)
             assert resp.content == b'{"k": "t&j"}'
 
     def test_enabled(self):
-        self.env.set(middleware.XSSJsonMiddleware.ENABLED_ENV, 'T')
         get_resp = lambda r: HttpResponse(
             content_type='application/json', content=b'{"k": "t&j"}')
         mid = middleware.XSSJsonMiddleware(get_resp)
-        with self.env:
+        with patch.dict('os.environ', {self.enabled_key: 'T'}):
             resp = mid(self.req)
             assert resp.content == b'{"k": "t\\u0026j"}'
 
