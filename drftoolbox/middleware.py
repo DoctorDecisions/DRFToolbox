@@ -26,7 +26,7 @@ class XSSJsonMiddleware(object):
         ord('<'): '\\u003C',
         ord('&'): '\\u0026',
     }
-    ENABLED_ENV = 'DRF-XSS-JSON-ESCAPE'
+    ENABLED_ENV = 'DRF_XSS_JSON_ESCAPE'
 
     def __init__(self, get_response):
         self.get_response = get_response
