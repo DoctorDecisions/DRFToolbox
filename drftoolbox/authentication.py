@@ -131,6 +131,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     www_authenticate_realm = 'api'
     cache_timeout = 60 * 5  # 5 minutes
     jwks_required_keys = ['kid', 'kty']
+    openid_url_append_backslash = True
 
     def authenticate_credentials(self, payload):
         """
@@ -150,6 +151,10 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         return []
 
     def openid_configuration_url(self, iss):
+        if iss and self.openid_url_append_backslash and not iss.endswith('/'):
+            # this authentication class is setup to append a backslash to all
+            # issuers missing it
+            iss = '{}/'.format(iss)
         return '{}.well-known/openid-configuration'.format(iss)
 
     def get_jwt_value(self, request):

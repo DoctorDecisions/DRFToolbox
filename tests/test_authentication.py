@@ -318,6 +318,22 @@ class OpenIdJWTAutenticationTests(TestCase):
             assert len(w) == 1
             assert w[0].category == DeprecationWarning
 
+    def test_openid_configuration_url(self):
+        backend = TestOpenIdJWTAuthentication()
+        iss = 'domain.com/'
+        assert backend.openid_configuration_url(iss) ==\
+                'domain.com/.well-known/openid-configuration'
+        iss = 'domain.com'
+        assert backend.openid_configuration_url(iss) ==\
+                'domain.com/.well-known/openid-configuration'
+        iss = ''
+        assert backend.openid_configuration_url(iss) ==\
+                '.well-known/openid-configuration'
+        backend.openid_url_append_backslash = False
+        iss = 'domain.com'
+        assert backend.openid_configuration_url(iss) ==\
+                'domain.com.well-known/openid-configuration'
+
 
 class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
     def setUp(self):
