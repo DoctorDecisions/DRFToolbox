@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 
-from django.test import TestCase, RequestFactory
+from django.test import TestCase, RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import path
 from rest_framework import views, viewsets, response, request
@@ -27,36 +27,36 @@ urlpatterns = [
 ]
 
 
+@override_settings(ROOT_URLCONF=__name__)
 class InlineRenderTests(TestCase):
     def setUp(self):
         self.request = RequestFactory().get('/')
-        self.request.urlconf = __name__
+        self.request.user = get_user_model().objects.create_user('test', 'pass')
+
+    def test_get_no_render(self):
+        resp = utils.inline_render('GET', '/missing/', self.request)
+        assert resp.status_code == 404
 
     def test_get_for_viewset(self):
-        self.request.user = get_user_model().objects.create_user('test', 'pass')
         resp = utils.inline_render('GET', '/test-vs/', self.request)
-        assert resp == {'data': 'test-vs'}
+        assert resp.data == {'data': 'test-vs'}
 
     def test_get_for_viewset_with_drf_request(self):
-        self.request.user = get_user_model().objects.create_user('test', 'pass')
         req = request.Request(self.request)
         resp = utils.inline_render('GET', '/test-vs/', req)
-        assert resp == {'data': 'test-vs'}
+        assert resp.data == {'data': 'test-vs'}
 
     def test_get_for_viewset_with_querydict(self):
         self.request.GET
-        self.request.user = get_user_model().objects.create_user('test', 'pass')
         resp = utils.inline_render('GET', '/test-vs/', self.request,
             query_dict={'q': True})
-        assert resp == {'data': 'test-vs with q'}
+        assert resp.data == {'data': 'test-vs with q'}
 
     def test_get_for_viewset_with_accepts(self):
-        self.request.user = get_user_model().objects.create_user('test', 'pass')
         resp = utils.inline_render('GET', '/test-vs/', self.request,
             accepts='application/json')
-        assert resp == '{"data":"test-vs"}'
+        assert resp.data == '{"data":"test-vs"}'
 
     def test_get_for_view(self):
-        self.request.user = get_user_model().objects.create_user('test', 'pass')
         resp = utils.inline_render('GET', '/test-v/', self.request)
-        assert resp == {'data': 'test-v'}
+        assert resp.data == {'data': 'test-v'}
