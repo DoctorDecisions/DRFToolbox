@@ -35,7 +35,7 @@ class InlineRenderTests(TestCase):
 
     def test_get_no_render(self):
         resp = utils.inline_render('GET', '/missing/', self.request)
-        resp.status_code == 404
+        assert resp.status_code == 404
 
     def test_get_for_viewset(self):
         resp = utils.inline_render('GET', '/test-vs/', self.request)
