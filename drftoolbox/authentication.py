@@ -203,13 +203,6 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         claims = jose_jwt.get_unverified_claims(token)
         issuers = self.acceptable_issuers()
         audiences = self.acceptable_audiences(claims)
-        if hasattr(self, 'acceptable_audience'):
-            msg = (
-                '"acceptable_audience()" is deprecated, '
-                'please update {} to use "acceptable_audiences()"'
-            ).format(type(self).__name__)
-            warnings.warn(msg, DeprecationWarning)
-            audiences = [getattr(self, 'acceptable_audience')(claims),]
         key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
         if key is None:
             raise jose_exceptions.JWTClaimsError('missing public key')
@@ -230,9 +223,12 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
                     audience=aud,
                     options={'verify_aud': (aud is not None)},
                 )
-            except jose_exceptions.JWTClaimsError:
+            except jose_exceptions.JWTClaimsError as exc:
+                # issuer and/or audience didn't match, move on to the next
+                # if this is the last audience to check, then raise an
+                # AuthenticationFailed error
                 if idx == len(audiences):
-                    raise
+                    raise exceptions.AuthenticationFailed(exc.args[0])
 
     def authenticate(self, request):
         """
@@ -246,13 +242,12 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
-        except jose_exceptions.JWTClaimsError:
-            # issuer and/or audience didn't match, move on to the next
-            # authentication module
-            return None
         except jose_exceptions.JOSEError as exc:
             # for a problem with the token's validity, raise a 401
             raise exceptions.AuthenticationFailed(exc.args[0])
+
+        if payload is None:
+            return None
 
         user = self.authenticate_credentials(payload)
 
