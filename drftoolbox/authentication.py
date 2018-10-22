@@ -224,11 +224,17 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
                     options={'verify_aud': (aud is not None)},
                 )
             except jose_exceptions.JWTClaimsError as exc:
-                # issuer and/or audience didn't match, move on to the next
-                # if this is the last audience to check, then raise an
-                # AuthenticationFailed error
                 if idx == len(audiences):
-                    raise exceptions.AuthenticationFailed(exc.args[0])
+                    raise
+
+    def handle_claims_error(self, exc):
+        """
+        Issuer and/or audience didn't match, by default raise an
+        AuthenticationFailed error, however you could override this
+        method to return None, if you want the authentication process
+        to proceed.
+        """
+        raise exceptions.AuthenticationFailed(exc.args[0])
 
     def authenticate(self, request):
         """
@@ -242,12 +248,11 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self.decode_handler(jwt_value)
+        except jose_exceptions.JWTClaimsError as exc:
+            return self.handle_claims_error(exc)
         except jose_exceptions.JOSEError as exc:
             # for a problem with the token's validity, raise a 401
             raise exceptions.AuthenticationFailed(exc.args[0])
-
-        if payload is None:
-            return None
 
         user = self.authenticate_credentials(payload)
 
