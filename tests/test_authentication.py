@@ -208,12 +208,13 @@ class OpenIdJWTAutenticationTests(TestCase):
             backend.authenticate(request)
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
-    def test_bad_openid_uri(self, mock_openid):
+    def test_missing_public_key(self, mock_openid):
         mock_openid.return_value = None
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({}, 'test', headers={})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        assert backend.authenticate(request) is None
+        with pytest.raises(exceptions.AuthenticationFailed):
+            backend.authenticate(request)
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -223,7 +224,8 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({}, 'test', headers={})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        assert backend.authenticate(request) is None
+        with pytest.raises(exceptions.AuthenticationFailed):
+            backend.authenticate(request)
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -244,7 +246,8 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({'iss': 'invalid', 'aud': 'audience'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        assert backend.authenticate(request) is None
+        with pytest.raises(exceptions.AuthenticationFailed):
+            backend.authenticate(request)
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -254,7 +257,8 @@ class OpenIdJWTAutenticationTests(TestCase):
         backend = TestOpenIdJWTAuthentication()
         jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'invalid'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        assert backend.authenticate(request) is None
+        with pytest.raises(exceptions.AuthenticationFailed):
+            backend.authenticate(request)
 
     @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
     @patch('drftoolbox.authentication.jwks_to_public_key')
@@ -262,7 +266,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         mock_jwks.return_value = 'test'
         mock_openid.return_value = '<url>'
         backend = TestOpenIdJWTAuthentication()
-        jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'audience'}, 'test', headers={'alg': 'RS256'})
+        jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'audience1'}, 'test', headers={'alg': 'RS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
         with pytest.raises(exceptions.AuthenticationFailed):
             backend.authenticate(request)
@@ -273,7 +277,7 @@ class OpenIdJWTAutenticationTests(TestCase):
         mock_jwks.return_value = 'test'
         mock_openid.return_value = '<url>'
         backend = TestOpenIdJWTAuthentication()
-        jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'audience'}, 'test', headers={'alg': 'HS256'})
+        jwt = jose_jwt.encode({'iss': 'issuer', 'aud': 'audience1'}, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
         assert backend.authenticate(request) is None
 
@@ -292,31 +296,6 @@ class OpenIdJWTAutenticationTests(TestCase):
         jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
         request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
         assert backend.authenticate(request) == (user, payload)
-
-    @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
-    @patch('drftoolbox.authentication.jwks_to_public_key')
-    def test_valid_user_audience_deprecation(self, mock_jwks, mock_openid):
-        user = get_user_model().objects.create_user('test')
-        mock_jwks.return_value = 'test'
-        mock_openid.return_value = '<url>'
-        backend = TestOpenIdJWTAuthentication()
-        backend.acceptable_audience = lambda self: 'audience1'
-        payload = {'iss': 'issuer', 'aud': 'audience1', 'user_id': user.id}
-        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
-        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter('always')
-            assert backend.authenticate(request) == (user, payload)
-            assert len(w) == 1
-            assert w[0].category == DeprecationWarning
-        payload = {'iss': 'issuer', 'aud': 'audience2', 'user_id': user.id}
-        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256'})
-        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter('always')
-            assert backend.authenticate(request) is None
-            assert len(w) == 1
-            assert w[0].category == DeprecationWarning
 
     def test_openid_configuration_url(self):
         backend = TestOpenIdJWTAuthentication()
