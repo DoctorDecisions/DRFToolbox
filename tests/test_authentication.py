@@ -3,7 +3,7 @@ import datetime
 import json
 import io
 from unittest.mock import patch
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 import warnings
 
 import boto3
@@ -30,6 +30,28 @@ class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
 
     def acceptable_audiences(self, payload):
         return ['audience1', 'audience2']
+
+
+class UrlopenTests(TestCase):
+    @patch('urllib.request.urlopen')
+    def test_no_retry(self, mock_urlopen):
+        mock_urlopen.side_effect = [URLError('error'),]
+        with pytest.raises(URLError):
+            authentication.urlopen('http://url.com', retry=0)
+
+    @patch('urllib.request.urlopen')
+    def test_retry_wrong_error(self, mock_urlopen):
+        mock_urlopen.side_effect = [ValueError(),]
+        with pytest.raises(ValueError):
+            authentication.urlopen('http://url.com', retry=1)
+        assert mock_urlopen.call_count == 1
+
+    @patch('urllib.request.urlopen')
+    def test_retry(self, mock_urlopen):
+        mock_urlopen.side_effect = [URLError('error'), 'ok',]
+        resp = authentication.urlopen('http://url.com', retry=1, wait=0.001)
+        assert resp == 'ok'
+        assert mock_urlopen.call_count == 2
 
 
 class TestKMSSecretAPISignatureAuthentucation(authentication.BaseKMSSecretAPISignatureAuthentication):

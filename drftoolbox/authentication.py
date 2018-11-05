@@ -11,6 +11,7 @@ import base64
 import datetime
 import logging
 import json
+import time
 import urllib.request
 import urllib.error
 import warnings
@@ -31,6 +32,21 @@ import pytz
 LOGGER = logging.getLogger(__name__)
 
 
+def urlopen(url, data=None, retry=0, wait=1, backoff=True):
+    """
+    Proxy to the urllib.request.urlopen function, but will optionally retry the
+    request if a URLError is encountered
+    """
+    for attempt in range(retry + 1):
+        try:
+            return urllib.request.urlopen(url, data=data)
+        except urllib.error.URLError:
+            if attempt >= retry:
+                raise
+            countdown = wait * (2 ** attempt) if backoff else wait
+            time.sleep(countdown)
+
+
 def jwks_to_public_key(url, kid=None, required_keys=None, cache=None, timeout=None):
     """
     Given a URL linking to a public JSON Web Key Set (JWKS), return the public
@@ -43,7 +59,7 @@ def jwks_to_public_key(url, kid=None, required_keys=None, cache=None, timeout=No
     if value is None:
         LOGGER.debug('loading JWKS')
         try:
-            resp = urllib.request.urlopen(url)
+            resp = urlopen(url, retry=2)
             jwks = json.loads(resp.read().decode())
             keys = jwks['keys']
             value = None
@@ -72,7 +88,7 @@ def openid_configuration_to_jwks_uri(url, cache=None, timeout=None):
     if value is None:
         LOGGER.debug('loading openid configuration')
         try:
-            resp = urllib.request.urlopen(url)
+            resp = urlopen(url, retry=2)
             conf = json.loads(resp.read().decode())
             value = conf.get('jwks_uri')
             cache.set(key, value, timeout)
@@ -101,7 +117,7 @@ def kms_decrypted_url_secret(url, encrypted_field='encrypted_key',
     value = cache.get(key)
     if value is None:
         LOGGER.debug('loading KMS key')
-        resp = urllib.request.urlopen(url)
+        resp = urlopen(url, retry=2)
         data = json.loads(resp.read().decode())
         expiry = data.get(expiry_field)
         if expiry:
