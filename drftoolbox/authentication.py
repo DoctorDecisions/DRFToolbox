@@ -32,18 +32,19 @@ import pytz
 LOGGER = logging.getLogger(__name__)
 
 
-def urlopen(url, data=None, retry=0, wait=1):
+def urlopen(url, data=None, retry=0, wait=1, backoff=True):
     """
     Proxy to the urllib.request.urlopen function, but will optionally retry the
     request if a URLError is encountered
     """
-    try:
-        return urllib.request.urlopen(url, data=data)
-    except urllib.error.URLError:
-        if retry < 1:
-            raise
-        time.sleep(wait)
-        return urlopen(url, data=data, retry=retry-1, wait=wait)
+    for attempt in range(retry + 1):
+        try:
+            return urllib.request.urlopen(url, data=data)
+        except urllib.error.URLError:
+            if attempt >= retry:
+                raise
+            countdown = wait * (2 ** attempt) if backoff else wait
+            time.sleep(countdown)
 
 
 def jwks_to_public_key(url, kid=None, required_keys=None, cache=None, timeout=None):
