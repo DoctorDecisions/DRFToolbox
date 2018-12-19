@@ -367,7 +367,6 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
             LOGGER.warning('cache backend does not support time-to-live')
             return val, None
         ttl = ttl or cache.ttl(key)
-        now = datetime.datetime.now(tz=pytz.utc).replace(microsecond=0)
         return val, timezone.now() + datetime.timedelta(seconds=ttl)
 
     def fetch_user_data(self, api_key):
