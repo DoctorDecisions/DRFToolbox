@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-drftoolbox = {editable = true, path = "."}
+drftoolbox = {editable = true,path = "."}
 
 [dev-packages]
 coverage = "*"
@@ -17,4 +17,4 @@ pytest-cov = "*"
 pytest-django = "*"
 python-jose = "*"
 djangorestframework-camel-case = "*"
-drftoolbox = {editable = true, path = "."}
+drftoolbox = {editable = true,path = "."}
