@@ -14,18 +14,16 @@ import json
 import time
 import urllib.request
 import urllib.error
-import warnings
 
 import boto3
 from django.conf import settings
 from django.core.cache import caches
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils import timezone, dateparse, crypto
+from django.utils import timezone, dateparse
 from django.utils.encoding import smart_text
 from django.utils.translation import ugettext as _
 from jose import jwt as jose_jwt, exceptions as jose_exceptions
 from rest_framework import authentication, exceptions
-from rest_framework.settings import api_settings
 from rest_framework_httpsignature.authentication import SignatureAuthentication
 import pytz
 
@@ -47,7 +45,8 @@ def urlopen(url, data=None, retry=0, wait=1, backoff=True):
             time.sleep(countdown)
 
 
-def jwks_to_public_key(url, kid=None, required_keys=None, cache=None, timeout=None):
+def jwks_to_public_key(url, kid=None, required_keys=None, cache=None,
+                       timeout=None):
     """
     Given a URL linking to a public JSON Web Key Set (JWKS), return the public
     key defined, by parsing the certificate.
@@ -107,7 +106,8 @@ def kms_decrypt(value, client=None):
 
 
 def kms_decrypted_url_secret(url, encrypted_field='encrypted_key',
-        expiry_field='expiry', client=None, cache=None, timeout=None):
+                             expiry_field='expiry', client=None, cache=None,
+                             timeout=None):
     """
     Given a URL linking to a encrypted KMS key, return the decrypted value by
     downloading the key, and using AWS KMS to decrypt
@@ -133,10 +133,11 @@ def kms_decrypted_url_secret(url, encrypted_field='encrypted_key',
 
 class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
-    Use this base class to implement a OpenID configuration based JWT authentication
-    module.   Basically this is just a JWT authenticator that assumes an openid
-    configuration JSON object can be publicly found using the default URL format of
-    `<issuer>.well-known/openid-configuration` (the exact location can be overridden).
+    Use this base class to implement a OpenID configuration based JWT
+    authentication module.  Basically this is just a JWT authenticator that
+    assumes an openid configuration JSON object can be publicly found using the
+    default URL format of `<issuer>.well-known/openid-configuration` (the exact
+    location can be overridden).
 
     Clients should authenticate by passing an JWT token in the "Authorization"
     HTTP header, prepended with "Bearer". For example:
@@ -151,8 +152,9 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
     def authenticate_credentials(self, payload):
         """
-        All implementations must override this method to return a User instance,
-        if a User can be identified within the payload or None, if no User exists.
+        All implementations must override this method to return a User
+        instance, if a User can be identified within the payload or None, if no
+        User exists.
         """
         raise NotImplementedError
 
@@ -199,12 +201,14 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         public key in the JWKS spec
         """
         config_url = self.openid_configuration_url(issuer)
-        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=self.cache_timeout)
+        jwks_uri = openid_configuration_to_jwks_uri(
+                config_url, timeout=self.cache_timeout)
         if jwks_uri is None:
-            LOGGER.debug('invalid issuer openid configuration: {}'.format(config_url))
+            LOGGER.debug(f'invalid issuer openid configuration: {config_url}')
             return None
-        key = jwks_to_public_key(url=jwks_uri, kid=kid,
-                required_keys=self.jwks_required_keys, timeout=self.cache_timeout)
+        key = jwks_to_public_key(
+                url=jwks_uri, kid=kid, required_keys=self.jwks_required_keys,
+                timeout=self.cache_timeout)
         if key is None:
             LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
             return None
@@ -223,7 +227,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         if key is None:
             raise jose_exceptions.JWTClaimsError('missing public key')
         if not audiences:
-            audiences = [None,]
+            audiences = [None]
         for idx, aud in enumerate(audiences, start=1):
             # is possible to have more than 1 acceptable audience per issuer
             # thus we should attempt to decode with each possible audience
@@ -234,12 +238,12 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
                 return jose_jwt.decode(
                     token,
                     key,
-                    algorithms=[header.get('alg'),],
+                    algorithms=[header.get('alg')],
                     issuer=issuers,
                     audience=aud,
                     options={'verify_aud': (aud is not None)},
                 )
-            except jose_exceptions.JWTClaimsError as exc:
+            except jose_exceptions.JWTClaimsError:
                 if idx == len(audiences):
                     raise
 
@@ -280,7 +284,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         header in a `401 Unauthenticated` response, or `None` if the
         authentication scheme should return `403 Permission Denied` responses.
         """
-        return '{0} realm="{1}"'.format(self.auth_header_prefix, self.www_authenticate_realm)
+        return f'{self.auth_header_prefix} realm="{self.www_authenticate_realm}"'  # noqa: E501
 
 
 class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
@@ -290,7 +294,7 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
 
     To use this as an authentication method one must override the
     `get_aws_kms_arn` and `get_user` methods.  Also note, that if you want to
-    cycle or change the user secret in any way, you can optionally add the 
+    cycle or change the user secret in any way, you can optionally add the
     `secret_payload` method to your User model in your app.
 
     This class comes with a few utility classmethod thats can assist with
@@ -301,7 +305,7 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
     Those 3 utility methods should help out with a) creating a view to expose
     encrypted user secrets and b) decrypting user secrets exposed via a URL
 
-    Authorization: Signature keyId="<user-uid>",algorithm="<algorithm>",headers="<header1> <header2>",signature="<signature>"
+    Authorization: Signature keyId="<user-uid>",algorithm="<algorithm>",headers="<header1> <header2>",signature="<signature>"  # noqa: E501
      - `keyId` is a User's primary key as a string
      - `algorithm` must be one of the following: rsa-sha1, rsa-sha256,
         rsa-sha512, hmac-sha1, hmac-sha256, hmac-sha512.  "hmac-sha256" is the
@@ -345,9 +349,10 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
 
     def encrypted_user_secret(self, user):
         """
-        Given a user object, return a 2-tuple of a base64 encoded encrypted KMS key,
-        based on a unique secret value for the user, and an expiration datetime stamp.
-        (if the caching backend doesn't support TTL, then the expiry key will be `None`)
+        Given a user object, return a 2-tuple of a base64 encoded encrypted KMS
+        key, based on a unique secret value for the user, and an expiration
+        datetime stamp. (if the caching backend doesn't support TTL, then the
+        expiry key will be `None`)
         """
         client = self.client or boto3.client('kms')
         cache = caches[self.cache_name]
@@ -367,7 +372,6 @@ class BaseKMSSecretAPISignatureAuthentication(SignatureAuthentication):
             LOGGER.warning('cache backend does not support time-to-live')
             return val, None
         ttl = ttl or cache.ttl(key)
-        now = datetime.datetime.now(tz=pytz.utc).replace(microsecond=0)
         return val, timezone.now() + datetime.timedelta(seconds=ttl)
 
     def fetch_user_data(self, api_key):
