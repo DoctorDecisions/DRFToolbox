@@ -14,6 +14,7 @@ import json
 import time
 import urllib.request
 import urllib.error
+import warnings
 
 import boto3
 from django.conf import settings
@@ -146,7 +147,8 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
     auth_header_prefix = 'Bearer'
     www_authenticate_realm = 'api'
-    cache_timeout = 60 * 5  # 5 minutes
+    openid_conf_cache_timeout = 60 * 60 * 24  # 24 hours
+    jwks_cache_timeout = 60 * 60 * 24  # 24 hours
     jwks_required_keys = ['kid', 'kty']
     openid_url_append_backslash = True
 
@@ -200,15 +202,22 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         JWKS uri via the OpenID Configuration, then finding the matching
         public key in the JWKS spec
         """
+        if hasattr(self, 'cache_timeout'):
+            msg = (
+                'cache_timeout is deprecated, please use '
+                'openid_conf_cache_timeout  or jwks_cache_timeout'
+            )
+            warnings.warn(msg, DeprecationWarning)
         config_url = self.openid_configuration_url(issuer)
-        jwks_uri = openid_configuration_to_jwks_uri(
-                config_url, timeout=self.cache_timeout)
+        ttl = getattr(self, 'cache_timeout', self.openid_conf_cache_timeout)
+        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=ttl)
         if jwks_uri is None:
             LOGGER.debug(f'invalid issuer openid configuration: {config_url}')
             return None
+        ttl = getattr(self, 'cache_timeout', self.jwks_cache_timeout)
         key = jwks_to_public_key(
                 url=jwks_uri, kid=kid, required_keys=self.jwks_required_keys,
-                timeout=self.cache_timeout)
+                timeout=ttl)
         if key is None:
             LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
             return None
