@@ -7,7 +7,6 @@ from django.test import TestCase
 
 from djangorestframework_camel_case.render import CamelCaseJSONRenderer
 from rest_framework import views, serializers
-from rest_framework.settings import api_settings
 
 from drftoolbox import handlers
 
