@@ -69,7 +69,7 @@ class RequestLoggingViewMixin(object):
                         'jwt_headers': jose_jwt.get_unverified_header(token),
                         'jwt_claims': jose_jwt.get_unverified_claims(token),
                     }
-                except jose_exceptions.JOSEError:
+                except (jose_exceptions.JOSEError, IndexError):
                     v = cls.obfuscate(v)
             headers[k] = v
         msg = {
