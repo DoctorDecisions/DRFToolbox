@@ -4,7 +4,6 @@ import json
 import io
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
-import warnings
 
 import boto3
 from botocore.stub import Stubber
@@ -30,6 +29,11 @@ class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
 
     def acceptable_audiences(self, payload):
         return ['audience1', 'audience2']
+
+
+class TestJKUJWTAuthentication(TestOpenIdJWTAuthentication):
+    def trust_jku_header(self, claims, header):
+        return header.get('jku') == 'https://trusted'
 
 
 class UrlopenTests(TestCase):
@@ -334,6 +338,29 @@ class OpenIdJWTAutenticationTests(TestCase):
         iss = 'domain.com'
         assert backend.openid_configuration_url(iss) ==\
                 'domain.com.well-known/openid-configuration'
+
+
+class JKUJWTAutenticationTests(TestCase):
+    @patch('drftoolbox.authentication.openid_configuration_to_jwks_uri')
+    @patch('drftoolbox.authentication.jwks_to_public_key')
+    def test_untrusted_jku(self, mock_jwks, mock_openid):
+        mock_jwks.return_value = None
+        mock_openid.return_value = '<url>'
+        backend = TestJKUJWTAuthentication()
+        jwt = jose_jwt.encode({}, 'test', headers={'jku': 'https://insecure'})
+        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
+        with pytest.raises(exceptions.AuthenticationFailed):
+            backend.authenticate(request)
+
+    @patch('drftoolbox.authentication.jwks_to_public_key')
+    def test_trusted_jku(self, mock_jwks):
+        user = get_user_model().objects.create_user('test')
+        mock_jwks.return_value = 'test'
+        backend = TestJKUJWTAuthentication()
+        payload = {'iss': 'issuer', 'aud': 'audience1', 'user_id': user.id}
+        jwt = jose_jwt.encode(payload, 'test', headers={'alg': 'HS256', 'jku': 'https://trusted'})
+        request = RequestFactory().get('/', HTTP_AUTHORIZATION='Bearer {}'.format(jwt).encode())
+        assert backend.authenticate(request) == (user, payload)
 
 
 class BaseKMSSecretAPISignatureAuthenticationTests(TestCase):
