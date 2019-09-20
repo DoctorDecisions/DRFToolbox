@@ -172,6 +172,17 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     def acceptable_audiences(self, payload):
         return []
 
+    def trust_jku_header(self, claims, header):
+        """
+        By default this class is not going to trust that a JKU value points
+        to the correct JWKS keys, however this method can be overriden by a
+        subclass to optionally allow that and remove the
+        "../.well-known/openid-configuration" call.  If overriden, its
+        advised that the implementation add another level of verification to
+        know that the JKU header value can be trusted.
+        """
+        return False
+
     def openid_configuration_url(self, iss):
         if iss and self.openid_url_append_backslash and not iss.endswith('/'):
             # this authentication class is setup to append a backslash to all
@@ -199,12 +210,18 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         return auth[1]
 
     def get_jwks_uri(self, claims, header):
+        """
+        Return a JWKS uri that can be used to get the public key for the
+        JWT claims/header.
+        """
         if hasattr(self, 'cache_timeout'):
             msg = (
                 'cache_timeout is deprecated, please use '
                 'openid_conf_cache_timeout or jwks_cache_timeout'
             )
             warnings.warn(msg, DeprecationWarning)
+        if self.trust_jku_header(claims, header):
+            return header.get('jku')
         issuer = claims.get('iss')
         config_url = self.openid_configuration_url(issuer)
         ttl = getattr(self, 'cache_timeout', self.openid_conf_cache_timeout)
@@ -222,8 +239,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         ttl = getattr(self, 'cache_timeout', self.jwks_cache_timeout)
         key = jwks_to_public_key(
                 url=jwks_uri,
-                kid=header.get('kid'
-                kid=kid,
+                kid=header.get('kid'),
                 required_keys=self.jwks_required_keys,
                 timeout=ttl)
         if key is None:
