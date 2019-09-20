@@ -93,7 +93,9 @@ def openid_configuration_to_jwks_uri(url, cache=None, timeout=None):
             value = conf.get('jwks_uri')
             cache.set(key, value, timeout)
         except (ValueError, urllib.error.HTTPError):
-            return None
+            pass
+    if value is None:
+        LOGGER.debug(f'invalid issuer openid configuration: {url}')
     return value
 
 
@@ -196,27 +198,33 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
 
         return auth[1]
 
-    def get_public_key(self, issuer, kid=None):
+    def get_jwks_uri(self, claims, header):
+        if hasattr(self, 'cache_timeout'):
+            msg = (
+                'cache_timeout is deprecated, please use '
+                'openid_conf_cache_timeout or jwks_cache_timeout'
+            )
+            warnings.warn(msg, DeprecationWarning)
+        issuer = claims.get('iss')
+        config_url = self.openid_configuration_url(issuer)
+        ttl = getattr(self, 'cache_timeout', self.openid_conf_cache_timeout)
+        return openid_configuration_to_jwks_uri(config_url, timeout=ttl)
+
+    def get_public_key(self, claims, header):
         """
         Given an issuer, return the JWKS public key by first looking up the
         JWKS uri via the OpenID Configuration, then finding the matching
         public key in the JWKS spec
         """
-        if hasattr(self, 'cache_timeout'):
-            msg = (
-                'cache_timeout is deprecated, please use '
-                'openid_conf_cache_timeout  or jwks_cache_timeout'
-            )
-            warnings.warn(msg, DeprecationWarning)
-        config_url = self.openid_configuration_url(issuer)
-        ttl = getattr(self, 'cache_timeout', self.openid_conf_cache_timeout)
-        jwks_uri = openid_configuration_to_jwks_uri(config_url, timeout=ttl)
+        jwks_uri = self.get_jwks_uri(claims, header)
         if jwks_uri is None:
-            LOGGER.debug(f'invalid issuer openid configuration: {config_url}')
             return None
         ttl = getattr(self, 'cache_timeout', self.jwks_cache_timeout)
         key = jwks_to_public_key(
-                url=jwks_uri, kid=kid, required_keys=self.jwks_required_keys,
+                url=jwks_uri,
+                kid=header.get('kid'
+                kid=kid,
+                required_keys=self.jwks_required_keys,
                 timeout=ttl)
         if key is None:
             LOGGER.debug('invalid issuer JWKS URI: {}'.format(jwks_uri))
@@ -232,7 +240,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         claims = jose_jwt.get_unverified_claims(token)
         issuers = self.acceptable_issuers()
         audiences = self.acceptable_audiences(claims)
-        key = self.get_public_key(claims.get('iss'), kid=header.get('kid'))
+        key = self.get_public_key(claims, header)
         if key is None:
             raise jose_exceptions.JWTClaimsError('missing public key')
         if not audiences:
