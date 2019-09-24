@@ -18,7 +18,7 @@ from drftoolbox import authentication
 
 
 class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
-    def authenticate_credentials(self, payload):
+    def authenticate_credentials(self, payload, request):
         try:
             return get_user_model().objects.get(id=payload.get('user_id'))
         except get_user_model().DoesNotExist:

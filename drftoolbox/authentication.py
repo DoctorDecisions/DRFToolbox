@@ -29,6 +29,8 @@ from rest_framework import authentication, exceptions
 from rest_framework_httpsignature.authentication import SignatureAuthentication
 import pytz
 
+from drftoolbox.utils import valid_func_args
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -135,6 +137,8 @@ def kms_decrypted_url_secret(url, encrypted_field='encrypted_key',
     return value
 
 
+
+
 class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     """
     Use this base class to implement a OpenID configuration based JWT
@@ -155,7 +159,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
     jwks_required_keys = ['kid', 'kty']
     openid_url_append_backslash = True
 
-    def authenticate_credentials(self, payload):
+    def authenticate_credentials(self, payload, request):
         """
         All implementations must override this method to return a User
         instance, if a User can be identified within the payload or None, if no
@@ -256,27 +260,15 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
 
-        args = inspect.signature(self.acceptable_issuers).parameters.keys()
-        if {'claims', 'header'} != set(args):
-            msg = (
-                'acceptable_issuers() is deprecated, please override with '
-                'acceptable_issuers(claims, header)'
-            )
-            warnings.warn(msg, DeprecationWarning)
-            issuers = self.acceptable_issuers()  # pylint: disable=no-value-for-parameter
-        else:
+        if valid_func_args(self.acceptable_issuers, 'claims', 'header'):
             issuers = self.acceptable_issuers(claims, header)
-
-        args = inspect.signature(self.acceptable_audiences).parameters.keys()
-        if {'claims', 'header'} != set(args):
-            msg = (
-                'acceptable_audiences(payload) is deprecated, please override '
-                'with acceptable_issuers(claims, header)'
-            )
-            warnings.warn(msg, DeprecationWarning)
-            audiences = self.acceptable_audiences(claims)  # pylint: disable=no-value-for-parameter
         else:
+            issuers = self.acceptable_issuers()  # pylint: disable=no-value-for-parameter, line-too-long
+
+        if valid_func_args(self.acceptable_audiences, 'claims', 'header'):
             audiences = self.acceptable_audiences(claims, header)
+        else:
+            audiences = self.acceptable_audiences(claims)  # pylint: disable=no-value-for-parameter, line-too-long
 
         key = self.get_public_key(claims, header)
         if key is None:
@@ -329,7 +321,10 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
             # for a problem with the token's validity, raise a 401
             raise exceptions.AuthenticationFailed(exc.args[0])
 
-        user = self.authenticate_credentials(payload)
+        if valid_func_args(self.authenticate_credentials, 'payload', 'request'):
+            user = self.authenticate_credentials(payload, request)
+        else:
+            user = self.authenticate_credentials(payload)  # pylint: disable=no-value-for-parameter, line-too-long
 
         return user and (user, payload)
 
