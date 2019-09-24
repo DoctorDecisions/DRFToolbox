@@ -14,7 +14,6 @@ import warnings
 from django.http import Http404, HttpResponseNotFound
 from django.urls import resolve
 from django.utils.http import urlencode
-from rest_framework import viewsets
 
 
 def inline_render(method, url, request, query_dict=None, accepts=None):
@@ -27,6 +26,7 @@ def inline_render(method, url, request, query_dict=None, accepts=None):
     calling the API view.  This could be useful for say bootstrapping an
     initial API call with other data elements.
     """
+    from rest_framework import viewsets
     try:
         resolver = resolve(url)
         if hasattr(request, '_request'):
