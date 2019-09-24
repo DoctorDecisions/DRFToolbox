@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import json
-
 from django.test import TestCase, RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import path
 from rest_framework import views, viewsets, response, request
-from rest_framework.reverse import reverse
+import pytest
 
 from drftoolbox import utils
 
@@ -60,3 +58,14 @@ class InlineRenderTests(TestCase):
     def test_get_for_view(self):
         resp = utils.inline_render('GET', '/test-v/', self.request)
         assert resp.data == {'data': 'test-v'}
+
+
+class TestValidFuncArgs(TestCase):
+    def echo(self, val):
+        return val
+
+    def test_valid_func_args(self):
+        assert utils.valid_func_args(self.echo, 'val') is True
+
+    def test_invalid_func_args(self):
+        pytest.deprecated_call(utils.valid_func_args, self.echo, 'value')

@@ -8,11 +8,13 @@
     :copyright: (c) 2018 by Medical Decisions LLC
 """
 import copy
+import inspect
+import warnings
 
 from django.http import Http404, HttpResponseNotFound
-from django.urls import resolve, reverse
+from django.urls import resolve
 from django.utils.http import urlencode
-from rest_framework import request as drf_request, viewsets
+from rest_framework import viewsets
 
 
 def inline_render(method, url, request, query_dict=None, accepts=None):
@@ -61,3 +63,19 @@ def inline_render(method, url, request, query_dict=None, accepts=None):
         return resp
     except Http404:
         return HttpResponseNotFound()
+
+
+def valid_func_args(func, *args):
+    """
+    Helper function to test that a function's parameters match the desired
+    signature, if not then issue a deprecation warning.
+    """
+    keys = inspect.signature(func).parameters.keys()
+    if set(args) == set(keys):
+        return True
+    msg = (
+        f'{func.__name__}({", ".join(keys)}) is deprecated, please override '
+        f'with {func.__name__}({", ".join(args)})'
+    )
+    warnings.warn(msg, DeprecationWarning)
+    return False

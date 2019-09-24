@@ -18,16 +18,16 @@ from drftoolbox import authentication
 
 
 class TestOpenIdJWTAuthentication(authentication.BaseOpenIdJWTAuthentication):
-    def authenticate_credentials(self, payload):
+    def authenticate_credentials(self, payload, request):
         try:
             return get_user_model().objects.get(id=payload.get('user_id'))
         except get_user_model().DoesNotExist:
             return None
 
-    def acceptable_issuers(self):
+    def acceptable_issuers(self, claims, header):
         return ['issuer']
 
-    def acceptable_audiences(self, payload):
+    def acceptable_audiences(self, claims, header):
         return ['audience1', 'audience2']
 
 
