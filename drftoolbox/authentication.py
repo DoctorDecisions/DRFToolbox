@@ -263,7 +263,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
                 'acceptable_issuers(claims, header)'
             )
             warnings.warn(msg, DeprecationWarning)
-            issuers = self.acceptable_issuers()
+            issuers = self.acceptable_issuers()  # pylint: disable=no-value-for-parameter
         else:
             issuers = self.acceptable_issuers(claims, header)
 
@@ -274,7 +274,7 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
                 'with acceptable_issuers(claims, header)'
             )
             warnings.warn(msg, DeprecationWarning)
-            audiences = self.acceptable_audiences(claims)
+            audiences = self.acceptable_audiences(claims)  # pylint: disable=no-value-for-parameter
         else:
             audiences = self.acceptable_audiences(claims, header)
 
