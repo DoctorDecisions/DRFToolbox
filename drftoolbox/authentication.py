@@ -11,6 +11,7 @@ import base64
 import datetime
 import logging
 import json
+import inspect
 import time
 import urllib.request
 import urllib.error
@@ -162,14 +163,14 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         """
         raise NotImplementedError
 
-    def acceptable_issuers(self):
+    def acceptable_issuers(self, claims, header):
         """
         All implementations must override this method and return at least one
         acceptable issuer
         """
         raise NotImplementedError
 
-    def acceptable_audiences(self, payload):
+    def acceptable_audiences(self, claims, header):
         return []
 
     def trust_jku_header(self, claims, header):
@@ -254,8 +255,29 @@ class BaseOpenIdJWTAuthentication(authentication.BaseAuthentication):
         """
         header = jose_jwt.get_unverified_header(token)
         claims = jose_jwt.get_unverified_claims(token)
-        issuers = self.acceptable_issuers()
-        audiences = self.acceptable_audiences(claims)
+
+        args = inspect.signature(self.acceptable_issuers).parameters.keys()
+        if {'claims', 'header'} != set(args):
+            msg = (
+                'acceptable_issuers() is deprecated, please override with '
+                'acceptable_issuers(claims, header)'
+            )
+            warnings.warn(msg, DeprecationWarning)
+            issuers = self.acceptable_issuers()
+        else:
+            issuers = self.acceptable_issuers(claims, header)
+
+        args = inspect.signature(self.acceptable_audiences).parameters.keys()
+        if {'claims', 'header'} != set(args):
+            msg = (
+                'acceptable_audiences(payload) is deprecated, please override '
+                'with acceptable_issuers(claims, header)'
+            )
+            warnings.warn(msg, DeprecationWarning)
+            audiences = self.acceptable_audiences(claims)
+        else:
+            audiences = self.acceptable_audiences(claims, header)
+
         key = self.get_public_key(claims, header)
         if key is None:
             raise jose_exceptions.JWTClaimsError('missing public key')
