@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from unittest import mock
+
 from django.test import TestCase, RequestFactory, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import path
@@ -69,3 +71,7 @@ class TestValidFuncArgs(TestCase):
 
     def test_invalid_func_args(self):
         pytest.deprecated_call(utils.valid_func_args, self.echo, 'value')
+
+    def test_mock_func(self):
+        func = mock.MagicMock(return_value=1)
+        pytest.deprecated_call(utils.valid_func_args, func, 'value')

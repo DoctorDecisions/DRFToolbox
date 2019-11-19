@@ -26,6 +26,9 @@ def inline_render(method, url, request, query_dict=None, accepts=None):
     calling the API view.  This could be useful for say bootstrapping an
     initial API call with other data elements.
     """
+    # the viewsets module references the API settings, thus if you try to
+    # use these utility functions early on (say when you are defining the API
+    # settings) a circular dep error will occur.
     from rest_framework import viewsets
     try:
         resolver = resolve(url)
@@ -73,9 +76,10 @@ def valid_func_args(func, *args):
     keys = inspect.signature(func).parameters.keys()
     if set(args) == set(keys):
         return True
+    label = getattr(func, '__name__', str(func))
     msg = (
-        f'{func.__name__}({", ".join(keys)}) is deprecated, please override '
-        f'with {func.__name__}({", ".join(args)})'
+        f'{label}({", ".join(keys)}) is deprecated, please override '
+        f'with {label}({", ".join(args)})'
     )
     warnings.warn(msg, DeprecationWarning)
     return False
